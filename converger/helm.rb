@@ -1,7 +1,17 @@
+require 'pathname'
+
 require_relative 'cmd_runner'
 require_relative 'to_version'
 
 class Helm < CmdRunner
+  def initialize(release_customizations_dir)
+    unless release_customizations_dir.kind_of?(Pathname)
+      release_customizations_dir = Pathname.new(release_customizations_dir.to_s)
+    end
+
+    @release_customizations_dir = release_customizations_dir.expand_path
+  end
+
   def best_available_version(chart_spec, namespace: :default, version_constraint: nil)
     kwargs = version_constraint ? {version: version_constraint} : {}
     doc = self.run_command_for_json!(:helm, :search, :repo, chart_spec, versions: true, output: :json, **kwargs)
@@ -35,10 +45,15 @@ class Helm < CmdRunner
     update_version = available_update_for_deployed_release(rel_name, chart_spec, namespace: namespace, version_constraint: version_constraint)
     return unless update_version
 
+    rel_values_path = @release_customizations_dir + "#{rel_name}.values.yaml"
+    rel_values_flags = rel_values_path.file? ? ['--values', rel_values_path] : []
+
     config_map_flags = config_map.map do |k, v|
       k = k.to_s.tr('_', '-')
       ["--set", "#{k}=#{v}"]
     end.flatten
+
+    flags = rel_values_flags + config_map_flags
 
     kwargs = {
       atomic: true,
@@ -50,7 +65,7 @@ class Helm < CmdRunner
     }
     kwargs[:namespace] = namespace if namespace and namespace != :default
 
-    self.run_command!(:helm, :upgrade, rel_name, chart_spec, *config_map_flags, **kwargs)
+    self.run_command!(:helm, :upgrade, rel_name, chart_spec, *flags, **kwargs)
   end
 
   def register_repos(repo_specs)

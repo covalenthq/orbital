@@ -4,10 +4,12 @@ require 'pathname'
 require_relative 'converger/helm'
 require_relative 'converger/kubectl'
 
-k8s_cfgs_dir = Pathname.new(__FILE__).parent / 'configs'
+wd = Pathname.new(__FILE__).parent
+k8s_resources_dir = wd / 'resources'
+helm_release_customizations_dir = wd / 'release_customizations'
 
-helm = Helm.new
-k8s_cfgs = Kubectl.new(k8s_cfgs_dir)
+helm = Helm.new(helm_release_customizations_dir)
+k8s_resources = Kubectl.new(k8s_resources_dir)
 
 helm.register_repos({
   'stable' => 'https://kubernetes-charts.storage.googleapis.com/',
@@ -24,6 +26,6 @@ helm.ensure_deployed 'cert-manager', 'jetstack/cert-manager',
     installCRDs: true
   }
 
-k8s_cfgs[:letsencrypt].apply_all!
+k8s_resources[:letsencrypt].apply_all!
 
-k8s_cfgs[:kuard].apply_all!
+k8s_resources[:kuard].apply_all!
