@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: scout
+
+spec:
+  selector:
+    matchLabels:
+      app: scout
+
+  strategy:
+    type: RollingUpdate
+    # type: Recreate
+
+  replicas: 1
+
+  template:
+    metadata:
+      labels:
+        app: scout
+
+    spec:
+      restartPolicy: Always
+
+      containers:
+        - name: redis-proxy
+          image: alpine/socat:latest
+          command: ["socat",
+                    "tcp-listen:6379,fork,reuseaddr",
+                    "tcp-connect:redis.default.svc:6379"]
+
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.17
+          command: ["/cloud_sql_proxy",
+                    "-instances=covalent-project:us-central1:userdb=tcp:5434",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          securityContext:
+            runAsNonRoot: true
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+
+        - name: app
+          image: gcr.io/covalent-project/scout:latest
+          command: ["java", "-jar", "/app/release.jar"]
+          ports:
+            - name: http
+              containerPort: 7000
+
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials

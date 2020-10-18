@@ -30,6 +30,12 @@ task :base do
   k8s_resources[:letsencrypt].apply_all!
 end
 
+task :redis do
+  k8s_resources[:redis].apply_all!
+end
+
 task :apps do
   k8s_resources[:kuard].apply_all!
+
+  k8s_resources[:scout].apply_all!
 end
