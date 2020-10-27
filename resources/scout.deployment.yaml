@@ -24,12 +24,6 @@ spec:
       restartPolicy: Always
 
       containers:
-        - name: redis-proxy
-          image: alpine/socat:latest
-          command: ["socat",
-                    "tcp-listen:6379,fork,reuseaddr",
-                    "tcp-connect:redis.default.svc:6379"]
-
         - name: cloudsql-proxy
           image: gcr.io/cloudsql-docker/gce-proxy:1.17
           command: ["/cloud_sql_proxy",
@@ -45,6 +39,40 @@ spec:
         - name: app
           image: gcr.io/covalent-project/scout:latest
           command: ["java", "-jar", "/app/release.jar"]
+          env:
+            - name: PORT
+              value: "8000"
+
+            - name: HTTP_ENDPOINT_URL
+              value: "https://api.covalenthq.com"
+
+            - name: ENABLE_BACKGROUND_JOBS
+              value: "true"
+
+            - name: USERDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: userdb-terminalapi-conn
+                  key: uri
+
+            - name: BLOCKSDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: blocksdb-terminalapi-conn
+                  key: uri
+
+            - name: WEB3_MAINNET_URL
+              valueFrom:
+                secretKeyRef:
+                  name: infura-conn
+                  key: mainnet_uri
+
+            - name: WEB3_KOVAN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: infura-conn
+                  key: kovan_uri
+
           ports:
             - name: http
               containerPort: 7000
