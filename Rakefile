@@ -9,7 +9,7 @@ helm_release_customizations_dir = wd / 'release_customizations'
 helm = Helm.new(helm_release_customizations_dir)
 k8s_resources = Kubectl.new(k8s_resources_dir)
 
-task default: [:base, :apps]
+task default: [:base, :secrets, :apps]
 
 task :base do
   helm.register_repos({
@@ -28,6 +28,10 @@ task :base do
     }
 
   k8s_resources[:letsencrypt].apply_all!
+end
+
+task :secrets do
+  k8s_resources[:secrets].apply_all!
 end
 
 task :redis do
