@@ -38,16 +38,27 @@ spec:
 
         - name: app
           image: gcr.io/covalent-project/scout:latest
-          command: ["java", "-jar", "/app/release.jar"]
           env:
+            - name: VALIDATE_ENV_AT_BOOT
+              value: "false"
+
+            - name: BOOT_TYPE
+              value: "prod"
+
+            - name: ENABLE_BACKGROUND_JOBS
+              value: "false"
+
             - name: PORT
               value: "8000"
 
             - name: HTTP_ENDPOINT_URL
               value: "https://api.covalenthq.com"
 
-            - name: ENABLE_BACKGROUND_JOBS
-              value: "true"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scout-redis-conn
+                  key: uri
 
             - name: USERDB_URL
               valueFrom:
@@ -65,17 +76,17 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: infura-conn
-                  key: mainnet_uri
+                  key: mainnet-uri
 
             - name: WEB3_KOVAN_URL
               valueFrom:
                 secretKeyRef:
                   name: infura-conn
-                  key: kovan_uri
+                  key: kovan-uri
 
           ports:
             - name: http
-              containerPort: 7000
+              containerPort: 8000
 
       volumes:
         - name: cloudsql-instance-credentials
