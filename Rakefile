@@ -13,7 +13,7 @@ task default: [:base, :secrets, :apps]
 
 task :base do
   helm.register_repos({
-    'stable' => 'https://kubernetes-charts.storage.googleapis.com/',
+    'stable' => 'https://charts.helm.sh/stable',
     'ingress-nginx' => 'https://kubernetes.github.io/ingress-nginx',
     'jetstack' => 'https://charts.jetstack.io'
   })
