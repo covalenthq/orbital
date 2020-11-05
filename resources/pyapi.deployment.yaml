@@ -49,6 +49,9 @@ spec:
             - name: PORT
               value: "8000"
 
+            - name: SCOUT_URL
+              value: "http://scout.default"
+
             - name: GCLOUD_SERVICE_KEY
               valueFrom:
                 secretKeyRef:

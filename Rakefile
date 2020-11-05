@@ -42,6 +42,6 @@ task :apps do
   k8s_resources[:kuard].apply_all!
 
   k8s_resources[:scout].apply_all!
-
   k8s_resources[:pyapi].apply_all!
+  k8s_resources[:covalentapi].apply_all!
 end
