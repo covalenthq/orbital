@@ -2,12 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 
 metadata:
-  name: scout
+  name: pyapi
 
 spec:
   selector:
     matchLabels:
-      app: scout
+      app: pyapi
 
   strategy:
     type: RollingUpdate
@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       labels:
-        app: scout
+        app: pyapi
 
     spec:
       restartPolicy: Always
@@ -37,22 +37,23 @@ spec:
               readOnly: true
 
         - name: app
-          image: gcr.io/covalent-project/scout:latest
+          image: gcr.io/covalent-project/api:beta
+          imagePullPolicy: Always
           env:
-            - name: VALIDATE_ENV_AT_BOOT
-              value: "false"
+            - name: SUBMODULE
+              value: "app"
 
-            - name: BOOT_TYPE
-              value: "prod"
-
-            - name: ENABLE_BACKGROUND_JOBS
-              value: "false"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "conf.prod"
 
             - name: PORT
               value: "8000"
 
-            - name: HTTP_ENDPOINT_URL
-              value: "https://api.covalenthq.com"
+            - name: GCLOUD_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: apiuser-service-account
+                  key: json-b64
 
             - name: REDIS_URL
               valueFrom:
@@ -60,29 +61,29 @@ spec:
                   name: cluster-redis-conn
                   key: uri
 
-            - name: USERDB_URL
-              valueFrom:
-                secretKeyRef:
-                  name: userdb-terminalapi-conn
-                  key: cloudsql-proxy-uri
-
             - name: BLOCKSDB_URL
               valueFrom:
                 secretKeyRef:
                   name: blocksdb-terminalapi-conn
                   key: external-uri
 
+            - name: CRAWLDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: crawldb-crawler-conn
+                  key: external-uri
+
+            - name: USERDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: userdb-terminalapi-conn
+                  key: cloudsql-proxy-uri
+
             - name: WEB3_MAINNET_URL
               valueFrom:
                 secretKeyRef:
                   name: geth-covalent-external-conn
                   key: mainnet-uri
-
-            - name: WEB3_KOVAN_URL
-              valueFrom:
-                secretKeyRef:
-                  name: geth-infura-conn
-                  key: kovan-uri
 
           ports:
             - name: http
