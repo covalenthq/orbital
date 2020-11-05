@@ -81,9 +81,26 @@ class Kubectl < CmdRunner
     unless resources_dir_path.kind_of?(Pathname)
       resources_dir_path = Pathname.new(resources_dir_path.to_s)
     end
+    @resources_path = resources_dir_path
+  end
 
-    @resources = ResourceSet.new
-    resource_files = resources_dir_path.expand_path.children
+  def resources
+    @resources ||= build_resource_set!()
+  end
+
+  def [](key)
+    self.resources[key]
+  end
+
+  def apply_resource_at_path(path)
+    self.run_command!(:kubectl, :apply, '-f', path)
+  end
+
+  private
+  def build_resource_set!
+    resource_set = ResourceSet.new
+
+    resource_files = @resources_path.expand_path.children
     resource_files = resource_files.filter do |f|
       f.file? and f.basename.to_s[0] != '.' and f.basename.to_s =~ RESOURCE_EXT_PAT
     end
@@ -91,19 +108,13 @@ class Kubectl < CmdRunner
     resource_files.each do |resource_path|
       key_path = resource_path.basename.to_s.gsub(RESOURCE_EXT_PAT, '').split('.').map{ |part| part.gsub('-', '_').intern }
       branches_part, leaf_part = key_path[0..-2], key_path[-1]
-      pos = @resources
+      pos = resource_set
       branches_part.each do |branch_key|
         pos = pos.ensure_subset_at(branch_key)
       end
       pos[leaf_part] = Resource.new(self, resource_path)
     end
-  end
 
-  def [](key)
-    @resources[key]
-  end
-
-  def apply_resource_at_path(path)
-    self.run_command!(:kubectl, :apply, '-f', path)
+    resource_set
   end
 end
