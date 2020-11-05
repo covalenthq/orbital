@@ -28,6 +28,11 @@ task :base do
     }
 
   k8s_resources[:letsencrypt].apply_all!
+  k8s_resources[:external_dns].apply_all!
+end
+
+task :dns do
+  k8s_resources[:external_dns].apply_all!
 end
 
 task :secrets do
