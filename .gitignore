@@ -1,1 +1,2 @@
-build/combined/secrets.yaml
+build/
+.envrc
