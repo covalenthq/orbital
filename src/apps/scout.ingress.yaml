@@ -1,25 +1,26 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: pyapi
+  name: scout
   annotations:
     kubernetes.io/ingress.class: "nginx"
     cert-manager.io/issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/use-http2: "true"
-    external-dns.alpha.kubernetes.io/hostname: pyapi.svc.umibiraki.xyz
-    external-dns.alpha.kubernetes.io/target: mareep.umibiraki.xyz
+    external-dns.alpha.kubernetes.io/hostname: "scout.svc.${INGRESS_ZONE}"
+    external-dns.alpha.kubernetes.io/target: "${INGRESS_LB_HOSTNAME}"
 
 spec:
   tls:
   - hosts:
-    - pyapi.svc.umibiraki.xyz
-    secretName: pyapi-ingress-tls
+    - "scout.svc.${INGRESS_ZONE}"
+    secretName: scout-ingress-tls
   rules:
-  - host: pyapi.svc.umibiraki.xyz
+  - host: "scout.svc.${INGRESS_ZONE}"
     http:
       paths:
       - path: /
         backend:
-          serviceName: pyapi
+          serviceName: scout
           servicePort: 80
+  }
