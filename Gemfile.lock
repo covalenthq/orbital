@@ -1,0 +1,42 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    activesupport (6.0.3.4)
+      concurrent-ruby (~> 1.0, >= 1.0.2)
+      i18n (>= 0.7, < 2)
+      minitest (~> 5.1)
+      tzinfo (~> 1.1)
+      zeitwerk (~> 2.2, >= 2.2.2)
+    concurrent-ruby (1.1.7)
+    i18n (1.8.5)
+      concurrent-ruby (~> 1.0)
+    minitest (5.14.2)
+    pastel (0.8.0)
+      tty-color (~> 0.5)
+    rake (13.0.1)
+    thread_safe (0.3.6)
+    tty-color (0.6.0)
+    tty-cursor (0.7.1)
+    tty-prompt (0.22.0)
+      pastel (~> 0.8)
+      tty-reader (~> 0.8)
+    tty-reader (0.8.0)
+      tty-cursor (~> 0.7)
+      tty-screen (~> 0.8)
+      wisper (~> 2.0)
+    tty-screen (0.8.1)
+    tzinfo (1.2.8)
+      thread_safe (~> 0.1)
+    wisper (2.0.1)
+    zeitwerk (2.4.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  activesupport
+  rake
+  tty-prompt
+
+BUNDLED WITH
+   2.1.4

@@ -19,6 +19,7 @@ class MkCert < CmdRunner
     unless self.paths[:cert].file?
       self.create_cert!
     end
+    self.paths
   end
 
   def create_cert!

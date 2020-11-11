@@ -58,22 +58,7 @@ lesser) goals.
    context. (Or run `kubectl config set-context docker-desktop`; these are
    equivalent.)
 
-10. Enable the local node to pull private Docker images from our
-    Google Container Registry bucket:
 
-    ```shell
-    $ gcloud iam service-accounts keys create ./cduser-creds.json \
-      --iam-account cduser@covalent-project.iam.gserviceaccount.com
-
-    $ kubectl create secret docker-registry covalent-project-gcr-auth \
-      --docker-server=gcr.io \
-      --docker-username=_json_key \
-      --docker-password="$(cat ./cduser-creds.json)" \
-      --docker-email=cduser@covalent-project.iam.gserviceaccount.com
-
-    $ kubectl patch serviceaccount default -p \
-      '{"imagePullSecrets": [{"name": "covalent-project-gcr-auth"}]}'
-    ```
 
 ## Usage
 

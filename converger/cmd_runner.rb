@@ -51,7 +51,14 @@ class CmdRunner
   def run_command!(*cmd, **kwargs)
     extra_flags = make_flags(kwargs)
     cmd = cmd.map(&:to_s) + extra_flags
-    puts("\n=> " + colorize(cmd.join(' '), :green))
+    printable_cmd = cmd.map do |part|
+      if part.length > 70 && part[0] != '/'
+        colorize("(#{part.length} bytes)", :blue)
+      else
+        colorize(part, :green)
+      end
+    end.join(' ')
+    puts("\n=> " + printable_cmd)
     system(@env, *cmd)
     exit_with_code!($?.exitstatus.to_i) unless $?.success?
   end
