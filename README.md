@@ -81,9 +81,10 @@ Deployment tasks are specified in `Rakefile` format in the `k8s` directory.
 For example:
 
 ```shell
-$ git clone git@github.com:covalenthq/k8s.git
-$ cd k8s/
-$ rake base
+git clone git@github.com:covalenthq/k8s-infra.git
+cd k8s/
+rake base
+rake infra
 ```
 
 ...will deploy the base infrastructure to your cluster.

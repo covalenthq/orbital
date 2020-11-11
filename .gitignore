@@ -1,2 +1,2 @@
-build/
-.envrc
+local-ca-cert/
+local-secrets/

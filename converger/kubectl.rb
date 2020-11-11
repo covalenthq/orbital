@@ -92,6 +92,10 @@ class Kubectl < CmdRunner
     self.resources[key]
   end
 
+  def apply_all!
+    self.resources.apply_all!
+  end
+
   def apply_resource_at_path(path)
     self.run_command!(:kubectl, :apply, '-f', path)
   end

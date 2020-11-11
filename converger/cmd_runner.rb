@@ -15,8 +15,22 @@ class CmdRunner
     [e.errno, {name: "#{err_name} (#{e.errno})", msg: e.message}]
   end.to_h
 
+  def initialize
+    @env = {}
+  end
+
   def colorize(str, color)
     COLORS[color] + str + COLORS[:reset]
+  end
+
+  def with_env(env_patch)
+    begin
+      prev_env = @env
+      @env = prev_env.merge(env_patch)
+      yield
+    ensure
+      @env = prev_env
+    end
   end
 
   def exit_with_code!(exit_code)
@@ -38,7 +52,7 @@ class CmdRunner
     extra_flags = make_flags(kwargs)
     cmd = cmd.map(&:to_s) + extra_flags
     puts("\n=> " + colorize(cmd.join(' '), :green))
-    system(*cmd)
+    system(@env, *cmd)
     exit_with_code!($?.exitstatus.to_i) unless $?.success?
   end
 

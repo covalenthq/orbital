@@ -1,0 +1,9 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  namespace: infrastructure
+  name: local-ca
+spec:
+  ca:
+    secretName: local-ca
