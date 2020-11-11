@@ -9,13 +9,14 @@ require_relative 'converger/gcloud'
 SVC_ACCT_CDUSER = "cduser@covalent-project.iam.gserviceaccount.com"
 
 wd = Pathname.new(__FILE__).parent
+state_dir = KubeResourceManager.new(wd / 'var')
 
 k8s = Kubectl.new
 helm = Helm.new
-gcloud = GCloud.new(wd / 'gcloud-service-accts')
+gcloud = GCloud.new(state_dir / 'gcloud-service-accts')
 k8s_resources = KubeResourceManager.new(wd / 'resources')
-k8s_local_secrets = KubeResourceManager.new(wd / 'local-secrets')
-mkcert = MkCert.new(wd / 'local-ca-cert')
+k8s_local_secrets = KubeResourceManager.new(state_dir / 'local-secrets')
+mkcert = MkCert.new(state_dir / 'local-ca-cert')
 
 task default: [:base, :infra]
 
