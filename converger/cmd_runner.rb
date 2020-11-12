@@ -1,5 +1,11 @@
 require 'json'
 
+class << ENV
+  def bin_path
+    @bin_path ||= self['PATH'].split(':').map{ |d| Pathname.new(d) }
+  end
+end
+
 class CmdRunner
   COLORS = {
     red: "\e[31m",
@@ -46,6 +52,15 @@ class CmdRunner
     kwargs = kwarg_defaults.merge(kwargs)
 
     kwargs.map{ |k, v| "--#{k}=#{v}" }
+  end
+
+  def resolve_command(cmd)
+    cmd = cmd.to_s
+    ENV.bin_path.lazy.map{ |d| d + cmd }.find{ |e| e.file? && e.executable? }
+  end
+
+  def command_available?(cmd)
+    self.resolve_command(cmd)
   end
 
   def run_command!(*cmd, **kwargs)

@@ -1,78 +1,68 @@
-# Kubernetes GitOps
+# Covalent K8s Infrastructure automation
 
-This repo contains a quick-and-dirty implementation of a Kubernetes (k8s)
-[GitOps](https://www.weave.works/technologies/gitops/) continuous-deployment
-model.
+This repo contains a set of scripted tasks to automate the initial infrastructure setup tasks for a Kubernetes cluster.
 
-The goal is to eventually transition to [GKE Application Delivery](https://cloud.google.com/kubernetes-engine/docs/concepts/add-on/application-delivery)
-when it's ready. It's a near-perfect model for our needs. But the implementation
-is not yet fully-baked: deploying it causes k8s cluster breakage, and it has no
-open-source release usable to test its logic outside a cloud deployment.
+## Runtime environment setup (macOS)
 
-So, for now, we can rely on the scripts in this repo to achieve similar (if
-lesser) goals.
+1. Install a recent Ruby, and add its bin dir to your `$PATH`. Also install
+the `bundler` gem.
 
-## Local Cluster Provisioning Pre-setup (Docker on Mac)
-
-1. Install a recent Ruby, and add its bin dir to your `$PATH`:
-
-   ```shell
-   $ brew install ruby
-   $ echo 'export PATH=/usr/local/opt/ruby/bin:$PATH' >> ~/.bash_profile
-   ```
+```sh
+brew install ruby
+echo 'export PATH=/usr/local/opt/ruby/bin:$PATH' >> ~/.bash_profile
+gem install bundler
+```
 
 2. Install the *Google Cloud SDK*, and follow the prompts to log in:
 
-   ```shell
-   $ brew cask install google-cloud-sdk
-   $ gcloud init
-   ```
+```sh
+brew cask install google-cloud-sdk
+gcloud init
+```
 
-3. Install `kubectl` from the *Google Cloud SDK*:
+3. In the root of this repo, install the Rubygem dependencies:
 
-   ```shell
-   $ gcloud components install kubectl
-   ```
+```sh
+git clone git@github.com:covalenthq/k8s-infra.git
+cd k8s-infra/
+bundle install
+```
 
-4. Install *Docker for Mac*:
+## K8s development cluster provisioning (Docker for Mac)
 
-   ```shell
-   $ brew cask install docker-edge
-   ```
+1. Install *Docker for Mac*, and `kubectl`:
 
-5. Add this line to your `/etc/hosts` (workaround for Docker-on-Mac k8s errors):
+```sh
+brew install kubectl
+brew cask install docker-edge
+```
 
-   ```
-   127.0.0.1 localhost.localdomain
-   ```
+2. Start *Docker for Mac*.
 
-6. Start Docker for Mac.
-
-7. (Optional) In the *Docker for Mac* Preferences, increase VM memory allocation
+3. (Optional) In the *Docker for Mac* Preferences, increase VM memory allocation
    — 16GB is recommended.
 
-8. In the *Docker for Mac* Preferences, enable Kubernetes, and wait for it to
+4. In the *Docker for Mac* Preferences, enable Kubernetes, and wait for it to
    finish initializing.
 
-9. In the *Docker for Mac* tray menu, select the `docker-desktop` Kubernetes
+5. In the *Docker for Mac* tray menu, select the `docker-desktop` Kubernetes
    context. (Or run `kubectl config set-context docker-desktop`; these are
    equivalent.)
 
-
-
 ## Usage
 
-Deployment tasks are specified in `Rakefile` format in the `k8s` directory.
-For example:
+Scripted tasks are specified in `Rakefile` format.
 
-```shell
-git clone git@github.com:covalenthq/k8s-infra.git
-cd k8s/
-rake base
-rake infra
+You can see the list of implemented top-level tasks by running:
+
+```sh
+rake --tasks
 ```
 
-...will deploy the base infrastructure to your cluster.
+Tasks form a dependency-graph and are idempotent. Don't worry about the side-effects of a task; just identify the set of capabilities you want to set up on your host and in your cluster, run the relevant tasks, and everything should "just work."
 
-All operations are idempotent. Just running `rake` will deploy and/or update
-everything, to get you a fully-functional cluster.
+To set up the *minimum viable* set of infrastructure components required to deploy Covalent applications into a given k8s cluster, run:
+
+```sh
+rake cluster:base
+```

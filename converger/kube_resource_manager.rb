@@ -62,8 +62,8 @@ class KubeResourceManager < CmdRunner
   end
 
   class Resource
-    def initialize(kubectl, path)
-      @kubectl = kubectl
+    def initialize(k8s_conn, path)
+      @k8s_conn = k8s_conn
       @path = path
     end
 
@@ -82,7 +82,9 @@ class KubeResourceManager < CmdRunner
     end
 
     def apply!
-      @kubectl.apply_resource_at_path(@path)
+      K8s::Resource.from_files(@path).each do |res|
+        @k8s_conn.create_resource(res)
+      end
     end
 
     def exist?
@@ -92,11 +94,12 @@ class KubeResourceManager < CmdRunner
 
   RESOURCE_EXT_PAT = /\.(yaml|yml)$/
 
-  def initialize(resources_dir_path)
+  def initialize(k8s_conn, resources_dir_path)
     super()
     unless resources_dir_path.kind_of?(Pathname)
       resources_dir_path = Pathname.new(resources_dir_path.to_s)
     end
+    @k8s_conn = k8s_conn
     @resources_path = resources_dir_path
   end
 
@@ -112,17 +115,13 @@ class KubeResourceManager < CmdRunner
     self.resources.apply_all!
   end
 
-  def apply_resource_at_path(path)
-    self.run_command!(:kubectl, :apply, '-f', path)
-  end
-
   def create_as(s_type, s_namespace, s_name)
     path = @resources_path / "#{s_name}.secret.yaml"
     return if path.file?
 
     string_data_parts = yield
 
-    doc = {
+    res = K8s::Resource.new(
       apiVersion: 'v1',
       kind: 'Secret',
       metadata: {
@@ -131,9 +130,11 @@ class KubeResourceManager < CmdRunner
       },
       type: 'Opaque',
       stringData: string_data_parts
-    }.deep_stringify_keys!
+    )
 
-    path.open('w'){ |f| f.write(doc.to_yaml) }
+    doc = JSON.parse(res.to_json).to_yaml
+
+    path.open('w'){ |f| f.write(doc) }
   end
 
   private
@@ -152,7 +153,7 @@ class KubeResourceManager < CmdRunner
       branches_part.each do |branch_key|
         pos = pos.ensure_subset_at(branch_key)
       end
-      pos[leaf_part] = Resource.new(self, resource_path)
+      pos[leaf_part] = Resource.new(@k8s_conn, resource_path)
     end
 
     resource_set
