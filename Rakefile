@@ -1,6 +1,6 @@
 require 'pathname'
 require 'securerandom'
-require 'k8s-client'
+require 'k8s-ruby'
 require 'tty-prompt'
 
 require_relative 'converger/cmd_runner'

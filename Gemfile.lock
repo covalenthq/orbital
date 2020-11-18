@@ -43,10 +43,10 @@ GEM
     jsonpath (0.9.9)
       multi_json
       to_regexp (~> 0.2.1)
-    k8s-client (0.10.4)
+    k8s-ruby (0.10.5)
       dry-struct (~> 0.5.0)
       dry-types (~> 0.13.0)
-      excon (~> 0.66)
+      excon (~> 0.71)
       hashdiff (~> 1.0.0)
       jsonpath (~> 0.9.5)
       recursive-open-struct (~> 1.1.0)
@@ -82,7 +82,7 @@ PLATFORMS
 
 DEPENDENCIES
   activesupport
-  k8s-client
+  k8s-ruby
   rake
   tty-prompt
 
