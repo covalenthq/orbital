@@ -42,6 +42,12 @@ namespace :dev do
     :"dev:cluster:ca-cert",
   ]
 
+  desc "interact with k8s resources at the REPL"
+  task :console do
+    require 'pry'
+    toplevel_binding.pry
+  end
+
   namespace :local do
     task :'ca-cert' => [mkcert.paths[:cert]]
 
