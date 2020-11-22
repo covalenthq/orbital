@@ -1,17 +1,15 @@
 ---
 apiVersion: cert-manager.io/v1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
-  namespace: infrastructure
   name: local-ca
 spec:
   ca:
     secretName: local-ca
 ---
 apiVersion: cert-manager.io/v1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
-  namespace: infrastructure
   name: letsencrypt-staging
 spec:
   acme:
@@ -29,9 +27,8 @@ spec:
           class: nginx
 ---
 apiVersion: cert-manager.io/v1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
-  namespace: infrastructure
   name: letsencrypt-prod
 spec:
   acme:
