@@ -11,7 +11,9 @@ require_relative 'converger/mkcert'
 require_relative 'converger/gcloud'
 
 def has_resource?(resource_set, resource_name)
-  resource_set.list(labelSelector: {'name' => resource_name}).length > 0
+  resource_set.list.find do |r|
+    r.name == resource_name or r.metadata.name == resource_name
+  end
 end
 
 
