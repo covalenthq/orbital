@@ -99,10 +99,10 @@ namespace :dev do
 
   namespace :cluster do
     desc "generates and installs a local CA cert into the cluster for development use"
-    task :'ca-cert' => [:"local:ca-cert", :namespaces] do
+    task :'ca-cert' => [:"local:ca-cert", :"cluster:namespaces"] do
       next if has_resource?(k8s_infra_secrets, 'local-ca')
 
-      local_ca_tls_secret = k8s::Resource.new(
+      local_ca_tls_secret = K8s::Resource.new(
         apiVersion: 'v1',
         kind: 'Secret',
         metadata: {
@@ -111,8 +111,8 @@ namespace :dev do
         },
         type: 'kubernetes.io/tls',
         data: {
-          'tls.crt' => Base64.encode64(ca_cert[:cert].read),
-          'tls.key' => Base64.encode64(ca_cert[:key].read),
+          'tls.crt' => Base64.encode64(mkcert.paths[:cert].read),
+          'tls.key' => Base64.encode64(mkcert.paths[:key].read),
         }
       )
 
@@ -120,7 +120,7 @@ namespace :dev do
     end
 
     desc "enables the cluster to pull Docker images from the Covalent gcr.io bucket"
-    task :'registry-access' => [:namespaces] do
+    task :'registry-access' => [:"cluster:namespaces"] do
       cduser_gcp_svcacct = "cduser@covalent-project.iam.gserviceaccount.com"
 
       next if has_resource?(k8s_infra_secrets, 'covalent-project-gcr-auth')
@@ -138,7 +138,7 @@ namespace :dev do
         }
       }
 
-      gcr_auth_secret = k8s::Resource.new(
+      gcr_auth_secret = K8s::Resource.new(
         apiVersion: 'v1',
         kind: 'Secret',
         metadata: {
@@ -153,7 +153,7 @@ namespace :dev do
 
       K8s::Stack.new('gcr-auth-secret', [gcr_auth_secret]).apply(k8s)
 
-      k8s.api('v1').resource('serviceaccount', namespace: 'default').merge_patch('default', {
+      k8s.api('v1').resource('serviceaccounts', namespace: 'default').merge_patch('default', {
         imagePullSecrets: [
           {namespace: 'infrastructure', name: 'covalent-project-gcr-auth'}
         ]
@@ -171,7 +171,7 @@ namespace :prod do
   ]
 
   namespace :cluster do
-    task :"cloudflare-api-access" => [:namespaces] do
+    task :"cloudflare-api-access" => [:"cluster:namespaces"] do
       next if has_resource?(k8s_infra_secrets, 'cloudflare-api')
 
       token = prompt.mask("Cloudflare API token:") do |q|
@@ -179,7 +179,9 @@ namespace :prod do
         q.validate /\w+/
       end
 
-      cloudflare_api_secret = k8s::Resource.new(
+      token = token.strip
+
+      cloudflare_api_secret = K8s::Resource.new(
         apiVersion: 'v1',
         kind: 'Secret',
         metadata: {
