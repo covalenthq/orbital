@@ -19,6 +19,7 @@ end
 
 wd = Pathname.new(__FILE__).parent
 state_dir = wd / 'var'
+local_resources = wd / 'resources'
 k8s_config_path = Pathname.new(ENV['HOME']) / '.kube' / 'config'
 
 k8s = K8s::Client.config(K8s::Config.load_file(k8s_config_path.to_s))
@@ -28,7 +29,6 @@ sh = CmdRunner.new
 prompt = TTY::Prompt.new
 helm = Helm.new
 gcloud = GCloud.new(state_dir / 'gcloud-service-accts')
-k8s_resources = KubeResourceManager.new(k8s, wd / 'resources')
 k8s_local_secrets = KubeResourceManager.new(k8s, state_dir / 'local-secrets')
 k8s_infra_secrets = k8s.api('v1').resource('secrets', namespace: 'infrastructure')
 mkcert = MkCert.new(state_dir / 'local-ca-cert')
@@ -116,7 +116,7 @@ namespace :dev do
         }
       )
 
-      k8s_infra_secrets.create_resource(local_ca_tls_secret)
+      K8s::Stack.new('local-ca-tls-secret', [local_ca_tls_secret]).apply(k8s)
     end
 
     desc "enables the cluster to pull Docker images from the Covalent gcr.io bucket"
@@ -151,7 +151,7 @@ namespace :dev do
         }
       )
 
-      k8s_infra_secrets.create_resource(gcr_auth_secret)
+      K8s::Stack.new('gcr-auth-secret', [gcr_auth_secret]).apply(k8s)
 
       k8s.api('v1').resource('serviceaccount', namespace: 'default').merge_patch('default', {
         imagePullSecrets: [
@@ -188,16 +188,23 @@ namespace :prod do
         },
         type: 'Opaque',
         data: {
-          'token' => Base64.encode64(token)
+          'token' => Base64.strict_encode64(token)
         }
       )
 
-      k8s_infra_secrets.create_resource(cloudflare_api_secret)
+      puts JSON.parse(cloudflare_api_secret.to_json()).to_yaml
+
+      K8s::Stack.new('cloudflare-api-secret', [cloudflare_api_secret]).apply(k8s)
     end
 
     desc "installs an agent in the cluster to sync ingress hostnames with a DNS registrar"
     task :"external-dns-sync" => [:"cluster:namespaces", :"cloudflare-api-access"] do
-      k8s_resources[:external_dns].apply_all!
+      external_dns = K8s::Stack.load(
+        'external-dns',
+        local_resources / 'external-dns.yaml'
+      )
+
+      external_dns.apply(k8s, prune: true)
     end
   end
 end
@@ -220,7 +227,7 @@ namespace :cluster do
     have_namespaces = k8s_namespaces.list.map{ |ns| ns.metadata.name }
 
     (need_namespaces - have_namespaces).each do |ns_name|
-      ns_resource = k8s::Resource.new(
+      ns_resource = K8s::Resource.new(
         apiVersion: 'v1',
         kind: 'Namespace',
         metadata: {
@@ -246,6 +253,11 @@ namespace :cluster do
       }
     )
 
-    k8s_resources[:issuer].apply_all!
+    issuers = K8s::Stack.load(
+      'issuers',
+      local_resources / 'issuers.yaml'
+    )
+
+    issuers.apply(k8s, prune: true)
   end
 end
