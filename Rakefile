@@ -14,7 +14,6 @@ def has_resource?(resources_spec, resource_name)
   resources_spec.list(fieldSelector: "metadata.name=#{resource_name}").length > 0
 end
 
-
 wd = Pathname.new(__FILE__).parent
 state_dir = wd / 'var'
 local_resources = wd / 'resources'
@@ -31,15 +30,31 @@ k8s_local_secrets = KubeResourceManager.new(k8s, state_dir / 'local-secrets')
 k8s_infra_secrets = k8s.api('v1').resource('secrets', namespace: 'infrastructure')
 mkcert = MkCert.new(state_dir / 'local-ca-cert')
 
+ensure_namespaces = lambda do |needed_namespaces|
+  k8s_namespaces = k8s.api('v1').resource('namespaces')
+  have_namespaces = k8s_namespaces.list.map{ |ns| ns.metadata.name }
+
+  (needed_namespaces - have_namespaces).each do |ns_name|
+    ns_resource = K8s::Resource.new(
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: ns_name
+      }
+    )
+
+    k8s_namespaces.create_resource(ns_resource)
+  end
+end
+
 toplevel_binding = binding
 
 namespace :dev do
   desc "sets up a local development cluster"
   task :base => [
-    :"cluster:namespaces",
-    :"cluster:ingress-controller",
+    :"dev:cluster:namespaces",
+    :"dev:cluster:ingress-controller",
     :"dev:cluster:registry-access",
-    :"dev:cluster:ca-cert",
   ]
 
   desc "interact with k8s resources at the REPL"
@@ -96,15 +111,25 @@ namespace :dev do
   end
 
   namespace :cluster do
+    desc "installs nginx + internal cert issuers into the cluster"
+    task :"ingress-controller" => [:"dev:cluster:ca-cert", :"cluster:ingress-controller"] do
+      issuers = K8s::Stack.load(
+        'issuers',
+        local_resources / 'issuers.dev.yaml'
+      )
+
+      issuers.apply(k8s, prune: true)
+    end
+
     desc "generates and installs a local CA cert into the cluster for development use"
-    task :'ca-cert' => [:"local:ca-cert", :"cluster:namespaces"] do
+    task :'ca-cert' => [:"local:ca-cert", :namespaces] do
       next if has_resource?(k8s_infra_secrets, 'local-ca')
 
       local_ca_tls_secret = K8s::Resource.new(
         apiVersion: 'v1',
         kind: 'Secret',
         metadata: {
-          namespace: 'infrastructure',
+          namespace: 'default',
           name: 'local-ca'
         },
         type: 'kubernetes.io/tls',
@@ -118,7 +143,7 @@ namespace :dev do
     end
 
     desc "enables the cluster to pull Docker images from the Covalent gcr.io bucket"
-    task :'registry-access' => [:"cluster:namespaces"] do
+    task :'registry-access' => [:namespaces] do
       cduser_gcp_svcacct = "cduser@covalent-project.iam.gserviceaccount.com"
 
       next if has_resource?(k8s_infra_secrets, 'covalent-project-gcr-auth')
@@ -157,19 +182,33 @@ namespace :dev do
         ]
       })
     end
+
+    task :namespaces do
+      ensure_namespaces.(["infrastructure", "staging", "production"])
+    end
   end
 end
 
 namespace :prod do
   desc "sets up an publically-available cloud cluster"
   task :base => [
-    :"cluster:namespaces",
-    :"cluster:ingress-controller",
+    :"prod:cluster:namespaces",
+    :"prod:cluster:ingress-controller",
     :"prod:cluster:external-dns-sync",
   ]
 
   namespace :cluster do
-    task :"cloudflare-api-access" => [:"cluster:namespaces"] do
+    desc "installs nginx + external cert issuers into the cluster"
+    task :"ingress-controller" => [:"cluster:ingress-controller"] do
+      issuers = K8s::Stack.load(
+        'issuers',
+        local_resources / 'issuers.prod.yaml'
+      )
+
+      issuers.apply(k8s, prune: true)
+    end
+
+    task :"cloudflare-api-access" => [:namespaces] do
       next if has_resource?(k8s_infra_secrets, 'cloudflare-api')
 
       token = prompt.mask("Cloudflare API token:") do |q|
@@ -198,13 +237,17 @@ namespace :prod do
     end
 
     desc "installs an agent in the cluster to sync ingress hostnames with a DNS registrar"
-    task :"external-dns-sync" => [:"cluster:namespaces", :"cloudflare-api-access"] do
+    task :"external-dns-sync" => [:namespaces, :"cloudflare-api-access"] do
       external_dns = K8s::Stack.load(
         'external-dns',
         local_resources / 'external-dns.yaml'
       )
 
       external_dns.apply(k8s, prune: true)
+    end
+
+    task :namespaces do
+      ensure_namespaces.(["infrastructure", "development"])
     end
   end
 end
@@ -220,27 +263,23 @@ namespace :local do
 end
 
 namespace :cluster do
-  task :namespaces do
+  task :"infra-namespace" do
     k8s_namespaces = k8s.api('v1').resource('namespaces')
 
-    need_namespaces = %w(infrastructure production development staging)
-    have_namespaces = k8s_namespaces.list.map{ |ns| ns.metadata.name }
+    next if has_resource?(k8s_namespaces, 'infrastructure')
 
-    (need_namespaces - have_namespaces).each do |ns_name|
-      ns_resource = K8s::Resource.new(
-        apiVersion: 'v1',
-        kind: 'Namespace',
-        metadata: {
-          name: ns_name
-        }
-      )
+    ns_resource = K8s::Resource.new(
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: 'infrastructure'
+      }
+    )
 
-      k8s_namespaces.create_resource(ns_resource)
-    end
+    k8s_namespaces.create_resource(ns_resource)
   end
 
-  desc "installs an ingress controller (and TLS cert controller) into the cluster"
-  task :"ingress-controller" => [:namespaces, :"local:helm-repos"] do
+  task :"ingress-controller" => [:"infra-namespace", :"local:helm-repos"] do
     helm.ensure_deployed('lb', 'ingress-nginx/ingress-nginx',
       namespace: :infrastructure
     )
@@ -252,12 +291,5 @@ namespace :cluster do
         installCRDs: true
       }
     )
-
-    issuers = K8s::Stack.load(
-      'issuers',
-      local_resources / 'issuers.yaml'
-    )
-
-    issuers.apply(k8s, prune: true)
   end
 end
