@@ -10,10 +10,8 @@ require_relative 'converger/kube_resource_manager'
 require_relative 'converger/mkcert'
 require_relative 'converger/gcloud'
 
-def has_resource?(resource_set, resource_name)
-  resource_set.list.find do |r|
-    r.name == resource_name or r.metadata.name == resource_name
-  end
+def has_resource?(resources_spec, resource_name)
+  resources_spec.list(fieldSelector: "metadata.name=#{resource_name}").length > 0
 end
 
 
