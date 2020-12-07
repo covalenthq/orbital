@@ -6,9 +6,12 @@
 #
 # The application 'rake' is installed as part of a gem, and
 # this file is here to facilitate running it.
-#
 
 require "pathname"
+
+project_path = File.expand_path("../..", Pathname.new(__FILE__).realpath)
+Dir.chdir(project_path)
+
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../../Gemfile",
   Pathname.new(__FILE__).realpath)
 
@@ -26,4 +29,17 @@ end
 require "rubygems"
 require "bundler/setup"
 
-load Gem.bin_path("rake", "rake")
+require "rake"
+
+class OrbitalSetup < Rake::Application
+  def run(argv = ARGV)
+    standard_exception_handling do
+      init "orbital setup", argv
+      load_rakefile
+      top_level
+    end
+  end
+end
+
+Rake.application = OrbitalSetup.new
+Rake.application.run

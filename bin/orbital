@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+install_path="$(dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )")"
+libexec_path="${install_path}/libexec"
+
+subcommand="$1"
+shift
+
+subcommand_path="${libexec_path}/orbital-${subcommand}"
+
+if [ -x "${subcommand_path}" ]; then
+  exec "${subcommand_path}" "$@"
+fi
+
+# no subcommand, or invalid subcommand
+cat <<EOF
+Usage:
+
+  orbital setup <taskname>
+
+  orbital release [--deploy]
+
+  orbital deploy <releasename>
+EOF

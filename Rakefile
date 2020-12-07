@@ -3,12 +3,12 @@ require 'securerandom'
 require 'k8s-ruby'
 require 'tty-prompt'
 
-require_relative 'converger/cmd_runner'
-require_relative 'converger/helm'
-require_relative 'converger/kubectl'
-require_relative 'converger/kube_resource_manager'
-require_relative 'converger/mkcert'
-require_relative 'converger/gcloud'
+require_relative 'lib/converger/cmd_runner'
+require_relative 'lib/converger/helm'
+require_relative 'lib/converger/kubectl'
+require_relative 'lib/converger/kube_resource_manager'
+require_relative 'lib/converger/mkcert'
+require_relative 'lib/converger/gcloud'
 
 def has_resource?(resources_spec, resource_name)
   resources_spec.list(fieldSelector: "metadata.name=#{resource_name}").length > 0
