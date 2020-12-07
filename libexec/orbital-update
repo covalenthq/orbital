@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'pathname'
+
 orbital_prefix = Pathname.new(__FILE__).realpath.parent.parent.expand_path
 
 unless (orbital_prefix + '.git').directory?
