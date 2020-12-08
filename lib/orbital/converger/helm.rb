@@ -1,7 +1,7 @@
 require 'pathname'
 
 require_relative 'cmd_runner'
-require_relative '../ext/to_version'
+require_relative '../../ext/to_version'
 
 class Helm < CmdRunner
   def best_available_version(chart_spec, namespace: :default, version_constraint: nil)

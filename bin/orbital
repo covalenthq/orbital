@@ -5,11 +5,11 @@ install_path="$(dirname "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&
 libexec_path="${install_path}/libexec"
 
 subcommand="$1"
-shift
 
 subcommand_path="${libexec_path}/orbital-${subcommand}"
 
-if [ -x "${subcommand_path}" ]; then
+if [ -n "$1" -a -x "${subcommand_path}" ]; then
+  shift
   exec "${subcommand_path}" "$@"
 fi
 
