@@ -28,7 +28,7 @@ class Orbital::Converger < Rake::Application
     @paths.prefix = Pathname.new(__FILE__).parent.parent.parent
     @paths.state_dir = @paths.prefix / 'var'
     @paths.k8s_config = @paths.homedir / '.kube' / 'config'
-    @paths.local_resources = @paths.prefix / 'resources'
+    @paths.local_resources = @paths.prefix / 'share' / 'resources'
 
     @prompt = TTY::Prompt.new
 
