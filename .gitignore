@@ -1,1 +1,12 @@
-var/
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+/var/
+
+# rspec failure tracking
+.rspec_status

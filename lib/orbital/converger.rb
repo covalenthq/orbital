@@ -135,7 +135,7 @@ class Orbital::Converger < Rake::Application
     end
 
     @last_description = "generates and installs a local CA cert into the cluster for development use"
-    define_task(Rake::Task, 'dev:cluster:ca-cert' => ["local:ca-cert", 'dev:cluster:namespaces']) do
+    define_task(Rake::Task, 'dev:cluster:ca-cert' => ["local:ca-cert", 'cluster:namespaces']) do
       next if @remote_resources.infra_secrets.has_resource?('local-ca')
 
       local_ca_tls_secret = K8s::Resource.new(
@@ -156,7 +156,7 @@ class Orbital::Converger < Rake::Application
     end
 
     @last_description = "enables the cluster to pull Docker images from the Covalent gcr.io bucket"
-    define_task(Rake::Task, 'dev:cluster:registry-access' => ['dev:cluster:namespaces']) do
+    define_task(Rake::Task, 'dev:cluster:registry-access' => ['cluster:namespaces']) do
       cduser_gcp_svcacct = "cduser@covalent-project.iam.gserviceaccount.com"
 
       next if @remote_resources.infra_secrets.has_resource?('covalent-project-gcr-auth')
@@ -196,13 +196,13 @@ class Orbital::Converger < Rake::Application
       })
     end
 
-    define_task(Rake::Task, 'dev:cluster:namespaces') do
+    define_task(Rake::Task, 'cluster:namespaces') do
       ensure_namespaces(["infrastructure", "staging", "production"])
     end
 
     @last_description = "sets up an publically-available cloud cluster"
     define_task(Rake::Task, 'prod:base' => [
-      :"prod:cluster:namespaces",
+      :"cluster:namespaces",
       :"prod:cluster:ingress-controller",
       :"prod:cluster:external-dns-sync",
     ])
@@ -217,7 +217,7 @@ class Orbital::Converger < Rake::Application
       issuers.apply(@runners.k8s, prune: true)
     end
 
-    define_task(Rake::Task, "prod:cluster:cloudflare-api-access" => ['prod:cluster:namespaces']) do
+    define_task(Rake::Task, "prod:cluster:cloudflare-api-access" => ['cluster:namespaces']) do
       next if @remote_resources.infra_secrets.has_resource?('cloudflare-api')
 
       token = prompt.mask("Cloudflare API token:") do |q|
@@ -244,7 +244,7 @@ class Orbital::Converger < Rake::Application
     end
 
     @last_description = "installs an agent in the cluster to sync ingress hostnames with a DNS registrar"
-    define_task(Rake::Task, "prod:cluster:external-dns-sync" => ['prod:cluster:namespaces', 'prod:cluster:cloudflare-api-access']) do
+    define_task(Rake::Task, "prod:cluster:external-dns-sync" => ['cluster:namespaces', 'prod:cluster:cloudflare-api-access']) do
       external_dns = K8s::Stack.load(
         'external-dns',
         local_resources / 'external-dns.yaml'
@@ -253,15 +253,23 @@ class Orbital::Converger < Rake::Application
       external_dns.apply(@runners.k8s, prune: true)
     end
 
-    define_task(Rake::Task, 'prod:cluster:namespaces') do
-      ensure_namespaces(["infrastructure", "development"])
+    @last_description = "installs a High-Availability Redis instance into the cluster"
+    define_task(Rake::Task, "prod:cluster:redis" => ['cluster:namespaces', 'local:helm-repos']) do
+      @runners.helm.ensure_deployed('r', 'bitnami/redis',
+        namespace: :production,
+        config_map: {
+          'master.resources.requests.memory' => '1Gi',
+          'master.resources.requests.cpu' => '500m'
+        }
+      )
     end
 
     define_task(Rake::Task, 'local:helm-repos') do
       @runners.helm.register_repos({
         'stable' => 'https://charts.helm.sh/stable',
         'ingress-nginx' => 'https://kubernetes.github.io/ingress-nginx',
-        'jetstack' => 'https://charts.jetstack.io'
+        'jetstack' => 'https://charts.jetstack.io',
+        'bitnami' => 'https://charts.bitnami.com/bitnami'
       })
     end
 

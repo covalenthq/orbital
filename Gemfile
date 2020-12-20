@@ -1,7 +1,7 @@
+# frozen_string_literal: true
+
+ruby '>= 2.6.0'
 source 'https://rubygems.org'
 
-gem 'rake'
-gem 'tty-prompt'
-gem 'activesupport'
-gem 'k8s-ruby'
-gem 'pry'
+# Specify your gem's dependencies in orbital.gemspec
+gemspec

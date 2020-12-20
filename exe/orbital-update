@@ -25,4 +25,4 @@ end
 
 system('git', 'fetch', 'origin')
 system('git', 'reset', '--hard', 'origin/master')
-system('bundle', 'install')
+system('bundle', 'install', '--deployment')
