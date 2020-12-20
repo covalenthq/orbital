@@ -4,7 +4,7 @@ require 'json'
 require 'yaml'
 require 'active_support/core_ext/hash/keys'
 
-require_relative 'cmd_runner'
+require 'orbital/converger/cmd_runner'
 
 class KubeResourceManager < CmdRunner
   class EmptyResourceSet

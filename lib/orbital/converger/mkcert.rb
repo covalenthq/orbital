@@ -1,6 +1,6 @@
 require 'pathname'
 
-require_relative 'cmd_runner'
+require 'orbital/converger/cmd_runner'
 
 class MkCert < CmdRunner
   def initialize(certs_store_path)

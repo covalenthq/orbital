@@ -1,5 +1,5 @@
 require 'pathname'
-require_relative 'cmd_runner'
+require 'orbital/converger/cmd_runner'
 
 class GCloud < CmdRunner
   def initialize(credentials_store_path)

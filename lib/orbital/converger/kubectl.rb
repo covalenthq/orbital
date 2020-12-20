@@ -1,7 +1,7 @@
 require 'pathname'
 require 'json'
 
-require_relative 'cmd_runner'
+require 'orbital/converger/cmd_runner'
 
 class Kubectl < CmdRunner
   def ensure_secret!(secret_type, secret_name, **kwargs)

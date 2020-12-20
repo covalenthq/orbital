@@ -6,11 +6,11 @@ require 'k8s-ruby'
 require 'tty-prompt'
 require 'ostruct'
 
-require_relative 'converger/helm'
-require_relative 'converger/kubectl'
-require_relative 'converger/kube_resource_manager'
-require_relative 'converger/mkcert'
-require_relative 'converger/gcloud'
+require 'orbital/converger/helm'
+require 'orbital/converger/kubectl'
+require 'orbital/converger/kube_resource_manager'
+require 'orbital/converger/mkcert'
+require 'orbital/converger/gcloud'
 
 class K8s::ResourceClient
   def has_resource?(resource_name)
