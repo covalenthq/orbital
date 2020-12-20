@@ -72,11 +72,6 @@ class Orbital::Converger < Rake::Application
       'dev:cluster:registry-access',
     ])
 
-    define_task(Rake::Task, 'console') do
-      require 'pry'
-      binding.pry
-    end
-
     define_task(Rake::Task, 'dev:local:ca-cert' => [
       @runners.mkcert.paths[:cert]
     ])

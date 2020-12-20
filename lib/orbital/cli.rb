@@ -11,12 +11,24 @@ module Orbital
     # Error raised by this runner
     Error = Class.new(StandardError)
 
-    desc 'version', 'orbital version'
+    desc 'version', 'Print the Orbital SDK version'
     def version
       require_relative 'version'
       puts "v#{Orbital::VERSION}"
     end
     map %w(--version -v) => :version
+
+    desc 'update', 'Update the Orbital SDK'
+    method_option :help, aliases: '-h', type: :boolean,
+                         desc: 'Display usage information'
+    def update(*)
+      if options[:help]
+        invoke :help, ['update']
+      else
+        require_relative 'commands/update'
+        Orbital::Commands::Update.new(options).execute
+      end
+    end
 
     desc 'setup', 'Run dev-toolchain and k8s-cluster setup workflows'
     method_option :help, aliases: '-h', type: :boolean,

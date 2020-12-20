@@ -1,5 +1,4 @@
 require "orbital/version"
+require "orbital/errors"
 
-module Orbital
-  class Error < StandardError; end
-end
+module Orbital; end

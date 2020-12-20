@@ -11,6 +11,9 @@ module Orbital
       end
 
       def execute(input: $stdin, output: $stdout)
+        # ARGV currently contains ['setup'], so get rid of that
+        ARGV.shift
+
         Rake.application = Orbital::Converger.new
         Rake.application.run
       end
