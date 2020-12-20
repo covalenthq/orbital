@@ -1,12 +1,17 @@
 # frozen_string_literal: true
 
 require 'forwardable'
+require 'orbital/errors'
 
 module Orbital
   class Command
     extend Forwardable
 
     def_delegators :command, :run
+
+    def fatal(message)
+      raise Orbital::CLI::Error, message
+    end
 
     # Execute this command
     #

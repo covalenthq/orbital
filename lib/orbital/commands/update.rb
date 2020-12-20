@@ -17,18 +17,18 @@ module Orbital
         git_path = @project_root / '.git'
 
         unless git_path.exist?
-          raise Orbital::CLI::Error, "Orbital SDK project root is not a git worktree!"
+          fatal "Orbital SDK project root is not a git worktree!"
         end
 
         Dir.chdir(@project_root.to_s) do
           on_branch = `git branch --show-current`.strip
 
           unless on_branch == 'master'
-            raise Orbital::CLI::Error, "Orbital SDK worktree is not on master branch"
+            fatal "Orbital SDK worktree is not on master branch"
           end
 
           unless `git status --porcelain`.strip.empty?
-            raise Orbital::CLI::Error, "Orbital SDK worktree is dirty"
+            fatal "Orbital SDK worktree is dirty"
           end
 
           system('git', 'fetch', 'origin')
