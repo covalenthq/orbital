@@ -105,14 +105,16 @@ class Orbital::Commands::Release < Orbital::Command
         run "git", "add", path.expand_path.to_s
       end
 
+      log :step, "create a release commit, and tag it"
+      log :spawn, "git commit"
       IO.popen(["git", "commit", "--file=-"], "r+") do |io|
-        io.puts "Release #{@release.tag.name}\n"
+        io.puts "Release #{@release.tag.name}\n\n"
         if @release.from_git_branch
           io.puts "Base branch: #{@release.from_git_branch}"
         end
         io.puts "Base commit: #{@release.from_git_ref}"
         io.close_write
-        io.read
+        $stderr.write(io.read)
       end
 
       with_temporary_git_tag(@release.tag) do
@@ -191,7 +193,6 @@ class Orbital::Commands::Release < Orbital::Command
   def with_temporary_git_tag(release_tag)
     begin
       run "git", "tag", release_tag.name
-      log :success, "create a release tag"
       yield
     ensure
       self.ensure_cleanup_step_emitted
