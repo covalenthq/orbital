@@ -24,7 +24,7 @@ class Orbital::Commands::Release < Orbital::Command
 
     @orbital_config =
       if project_orbital_config_path.file?
-        YAML.load(project_orbital_config.read)
+        YAML.load(project_orbital_config_path.read)
       else
         {}
       end
@@ -157,7 +157,7 @@ class Orbital::Commands::Release < Orbital::Command
         .gsub(/\bmaster\b/, @release.from_git_branch)
         .gsub(/\b0000000000000000000000000000000000000000\b/, @release.from_git_ref)
 
-      template_path.open('w'){ |f| f.write(doc) }
+      template_path.open('w'){ |f| f.write(patched_doc) }
     end
 
     config_path = self.project_root / @appctl_config['config_path']
