@@ -10,7 +10,7 @@ module Orbital
     extend Forwardable
 
     def sdk_root
-      @sdk_root ||= Pathname.new(__dir__).parent.parent.parent.expand_path
+      @sdk_root ||= Pathname.new(__dir__).parent.parent.expand_path
     end
 
     def project_root
