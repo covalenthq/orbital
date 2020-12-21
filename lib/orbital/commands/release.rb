@@ -19,6 +19,15 @@ class Orbital::Commands::Release < Orbital::Command
     end
 
     @appctl_config = YAML.load(appctl_config_path.read)
+
+    project_orbital_config_path = self.project_root / '.orbital.yaml'
+
+    @orbital_config =
+      if project_orbital_config_path.file?
+        YAML.load(project_orbital_config.read)
+      else
+        {}
+      end
   end
 
   def validate_environment
@@ -137,13 +146,18 @@ class Orbital::Commands::Release < Orbital::Command
   end
 
   def burn_in_release_metadata
-    release_properties_path = @project_root / 'release.properties'
-    release_properties_path.open('w') do |io|
-      io.puts "RELEASE_NAME=#{@release.tag.name}"
-      if @release.from_git_branch
-        io.puts "BASED_ON_BRANCH=#{@release.from_git_branch}"
-      end
-      io.puts "BASED_ON_REF=#{@release.from_git_ref}"
+    project_template_paths =
+      (@orbital_config['burn_in_release_metadata'] || [])
+      .map{ |path_part| self.project_root / path_part }
+
+    project_template_paths.each do |template_path|
+      patched_doc =
+        template_path.read
+        .gsub(/\blatest\b/, @release.tag.name)
+        .gsub(/\bmaster\b/, @release.from_git_branch)
+        .gsub(/\b0000000000000000000000000000000000000000\b/, @release.from_git_ref)
+
+      template_path.open('w'){ |f| f.write(doc) }
     end
 
     config_path = self.project_root / @appctl_config['config_path']
@@ -156,7 +170,7 @@ class Orbital::Commands::Release < Orbital::Command
     })
     kustomization_path.open('w'){ |io| io.write(kustomization_doc.to_yaml) }
 
-    [release_properties_path, kustomization_path]
+    [kustomization_path] + project_template_paths
   end
 
   def on_temporary_branch(new_branch, prev_ref)
