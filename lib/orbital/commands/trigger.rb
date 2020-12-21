@@ -219,10 +219,14 @@ class Orbital::Commands::Trigger < Orbital::Command
       elsif result and result['conclusion'] == 'success'
         result
       else
-        @github.first_workflow_run_job(
-          @options.repo,
-          run_id
-        )
+        begin
+          @github.first_workflow_run_job(
+            @options.repo,
+            run_id
+          )
+        rescue Net::HTTPServerException => e
+          nil
+        end
       end
     end
 
