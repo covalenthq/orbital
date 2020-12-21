@@ -97,7 +97,25 @@ class Orbital::Commands::Trigger < Orbital::Command
       ).run.result
 
     log :step, "monitor workflow progress"
-    self.monitor_workflow_progress(newest_workflow_run_id_after)
+
+    workflow_poller =
+      self.monitor_workflow_progress(newest_workflow_run_id_after)
+
+    if workflow_poller.state == :failure
+      job_id = workflow_poller.result['id']
+
+      log :break
+      log :info, [
+        "Please ",
+        link_to(
+          "https://github.com/#{@options.repo}/runs/#{job_id}?check_suite_focus=true",
+          "visit the Github Actions job-detail view for this job"
+        ),
+        " to learn more."
+      ]
+    end
+
+    workflow_poller.state == :success
   end
 
   class MonitorWorkflowProgressPoller < Orbital::Spinner::PollingSpinner
@@ -232,6 +250,6 @@ class Orbital::Commands::Trigger < Orbital::Command
 
     poller.run
 
-    poller.state == :success
+    poller
   end
 end
