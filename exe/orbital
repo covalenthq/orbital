@@ -43,7 +43,13 @@ end
 
 begin
   Orbital::CLI.start
-rescue Orbital::CLI::Error => err
-  puts "ERROR: #{err.message}"
-  exit 1
+rescue Orbital::CLI::FatalError => err
+  $stderr.puts(["\n🛑 " + err.message].to_flat_string)
+
+  if err.additional_info
+    $stderr.write("\n")
+    $stderr.puts(err.additional_info.to_flat_string)
+  end
+
+  Kernel.exit(1)
 end

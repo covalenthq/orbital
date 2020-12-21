@@ -25,11 +25,14 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_runtime_dependency 'rake', '~> 13.0'
-  spec.add_runtime_dependency 'tty'
+  spec.add_runtime_dependency 'tty-command', '~> 0.10.0'
+  spec.add_runtime_dependency 'tty-link', '~> 0.1.1'
+  spec.add_runtime_dependency 'tty-which', '~> 0.4.2'
   spec.add_runtime_dependency 'thor'
   spec.add_runtime_dependency 'activesupport'
   spec.add_runtime_dependency 'k8s-ruby'
   spec.add_runtime_dependency 'toml'
+  spec.add_runtime_dependency 'paint'
 
   spec.add_development_dependency 'rspec', '~> 3.10.0'
   spec.add_development_dependency 'pry'

@@ -1,16 +1,50 @@
 # frozen_string_literal: true
 
 require 'forwardable'
+require 'paint'
 require 'orbital/errors'
+require 'orbital/core_ext/to_flat_string'
 
 module Orbital
   class Command
     extend Forwardable
 
-    def_delegators :command, :run
+    def sdk_root
+      @sdk_root ||= Pathname.new(__dir__).parent.parent.parent.expand_path
+    end
 
-    def fatal(message)
-      raise Orbital::CLI::Error, message
+    def project_root
+      return @project_root if @project_root
+
+      result = IO.popen(['git', 'rev-parse', '--show-toplevel'], err: [:child, :out]){ |io| io.read }
+
+      fatal "command must be run within a git worktree" unless $?.success?
+
+      @project_root = Pathname.new(result.strip).expand_path
+    end
+
+    def_delegators :command
+
+    def fatal(*args)
+      raise Orbital::CLI::FatalError.new(*args)
+    end
+
+    LOG_STYLES = {
+      spawn: lambda{ |text| [Paint["$ ", :blue, :bold], Paint[text.to_flat_string, :blue]] },
+      celebrate: lambda{ |text| ["🎉 ", Paint[text.to_flat_string, :bold]] },
+      cry: lambda{ |text| ["😱 ", Paint[text, :bold, :red]] },
+      step: lambda{ |text| ["\n", Paint["### ", :bold], Paint[text.to_flat_string, :bold]] },
+      success: lambda{ |text| [Paint["✓", :green], " ", text] },
+      failure: lambda{ |text| [Paint["✗", :red], " ", text] },
+      warning: lambda{ |text| ["⚠️ ", Paint[text.to_flat_string, :yellow]] },
+      info: lambda{ |text| [Paint["i ", :blue, :bold], text] },
+      break: lambda{ |count| count ||= 1; "\n" * count }
+    }
+
+    def log(style, text = nil)
+      formatter = LOG_STYLES[style]
+      ansi = formatter.call(text)
+      $stderr.puts(ansi.to_flat_string)
     end
 
     # Execute this command
@@ -23,14 +57,20 @@ module Orbital
       )
     end
 
-    # The external commands runner
-    #
-    # @see http://www.rubydoc.info/gems/tty-command
-    #
-    # @api public
     def command(**options)
       require 'tty-command'
       TTY::Command.new(options)
+    end
+
+    def run(*cmdline, **kwargs)
+      log :spawn, cmdline.join(' ')
+
+      Kernel.system(*cmdline, **kwargs)
+
+      unless $?.success?
+        cmd_posix = Paint["#{cmdline[0]}(1)", :bold]
+        fatal ["Nonzero exit status from ", cmd_posix]
+      end
     end
 
     # The cursor movement
@@ -61,6 +101,11 @@ module Orbital
     def generator
       require 'tty-file'
       TTY::File
+    end
+
+    def link_to(*args)
+      require 'tty-link'
+      TTY::Link.link_to(*args)
     end
 
     # Terminal output paging
@@ -121,6 +166,16 @@ module Orbital
     def exec_exist?(*args)
       require 'tty-which'
       TTY::Which.exist?(*args)
+    end
+
+    def exec_exist!(cmd_name, install_doc)
+      cmd_posix_ref = Paint["#{cmd_name}(1)", :bold]
+
+      if self.exec_exist?(cmd_name)
+        log :success, "have #{cmd_posix_ref}"
+      else
+        fatal "#{cmd_posix_ref} is required. Please #{install_doc.to_flat_string}"
+      end
     end
   end
 end
