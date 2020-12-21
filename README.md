@@ -1,4 +1,4 @@
-# Covalent K8s Infrastructure automation
+# Orbital
 
 This repo contains a set of scripted tasks to automate the initial infrastructure setup tasks for a Kubernetes cluster.
 
