@@ -100,9 +100,14 @@ class Orbital::Commands::Deploy < Orbital::Command
         "workflow" => "appctl-apply"
       })
 
+      appctl_active_env = self.target_environments[@options.env]
+
       trigger_cmd.add_inputs({
         target_env: @options.env,
-        release_name: @options.tag
+        release_name: @options.tag,
+        gcp_project_name: appctl_active_env['project'],
+        gcp_compute_zone: appctl_active_env['compute']['zone'],
+        gke_cluster_name: appctl_active_env['cluster_name']
       })
 
       fatal "workflow failed!" unless trigger_cmd.execute
