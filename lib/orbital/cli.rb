@@ -60,7 +60,7 @@ module Orbital
 
     desc 'release', 'Burn a tagged release commit, and build an image from it'
     method_option :imagebuild, aliases: '-b', type: :string, banner: 'STRATEGY',
-                               enum: ['local', 'cloudbuild'], default: 'local',
+                               enum: ['local', 'github', 'cloudbuild'], default: 'local',
                                desc: "Build Docker image with the given strategy."
     method_option :deploy, aliases: '-d', type: :boolean,
                            desc: "Deploy to staging automatically if release succeeds."

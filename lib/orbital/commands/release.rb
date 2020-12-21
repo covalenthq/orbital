@@ -35,7 +35,7 @@ class Orbital::Commands::Release < Orbital::Command
     log :step, "ensure release environment is sane"
 
     case @options.imagebuild
-    when :cloudbuild
+    when :github, :cloudbuild
       exec_exist! 'gcloud', [link_to(
         "https://cloud.google.com/sdk/docs/install",
         "install the Google Cloud SDK."
@@ -91,7 +91,7 @@ class Orbital::Commands::Release < Orbital::Command
 
     @release.tag = OpenStruct.new(
       name: "v#{Time.now.strftime("%Y%m%d%H%M%S")}",
-      pushed: false
+      state: :not_pushed
     )
     @release.docker_image.ref = "#{@release.docker_image.name}:#{@release.tag.name}"
     log :success, "generate a release name based on the current datetime (like GAE)"
@@ -118,9 +118,41 @@ class Orbital::Commands::Release < Orbital::Command
       end
 
       with_temporary_git_tag(@release.tag) do
+        if @options.imagebuild == :github
+          log :step, "push tag (and accompanying git objects)"
+          run "git", "push", "origin", @release.tag.name
+          @release.tag.state = :tentatively_pushed
+        end
+
         log :step, "build and push Docker image #{@release.docker_image.ref}"
 
         case @options.imagebuild
+        when :github
+          gcloud_access_token = `gcloud auth print-access-token`.strip
+          fatal "gcloud authentication error" unless $?.success?
+
+          require_relative 'trigger'
+
+          trigger_cmd = Orbital::Commands::Trigger.new({
+            "repo" => "app",
+            "workflow" => "imagebuild",
+            "branch" => @release.tag.name
+          })
+
+          docker_registry_hostname, docker_image_name_path_part =
+            @release.docker_image.name.split('/', 2)
+
+          trigger_cmd.add_inputs({
+            registry_hostname: docker_registry_hostname,
+            registry_username: 'oauth2accesstoken',
+            registry_password: gcloud_access_token,
+            image_name: docker_image_name_path_part,
+            image_tag: @release.tag.name
+          })
+
+          fatal "image build+push failed" unless trigger_cmd.execute
+          @release.tag.state = :pushed
+          log :success, "image built and pushed"
         when :cloudbuild
           run "gcloud", "builds", "submit", "--tag", @release.docker_image.ref, "."
           fatal "image build+push failed" unless $?.success?
@@ -135,9 +167,11 @@ class Orbital::Commands::Release < Orbital::Command
           log :success, "image pushed"
         end
 
-        log :step, "push tag (and accompanying git objects)"
-        run "git", "push", "origin", @release.tag.name
-        @release.tag.pushed = true
+        if @release.tag.state == :not_pushed
+          log :step, "push tag (and accompanying git objects)"
+          run "git", "push", "origin", @release.tag.name
+          @release.tag.state = :pushed
+        end
       end
     end
 
@@ -195,10 +229,14 @@ class Orbital::Commands::Release < Orbital::Command
       run "git", "tag", release_tag.name
       yield
     ensure
-      self.ensure_cleanup_step_emitted
-      unless release_tag.pushed
+      if release_tag.state != :pushed
+        self.ensure_cleanup_step_emitted
+        if release_tag.state == :tentatively_pushed
+          run "git", "push", "--delete", "origin", release_tag.name
+          log :success, "delete release tag (remote)"
+        end
         run "git", "tag", "--delete", release_tag.name
-        log :success, "delete release tag"
+        log :success, "delete release tag (local)"
       end
     end
   end
