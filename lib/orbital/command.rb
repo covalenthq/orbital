@@ -103,9 +103,9 @@ module Orbital
       TTY::File
     end
 
-    def link_to(*args)
+    def link_to(uri, text)
       require 'tty-link'
-      TTY::Link.link_to(*args)
+      TTY::Link.link_to(text, uri)
     end
 
     # Terminal output paging
