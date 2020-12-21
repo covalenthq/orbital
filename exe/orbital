@@ -25,9 +25,18 @@ vendor_active_dir =
   end
 
 unless vendor_active_dir and deps_mtime <= vendor_active_dir.mtime
+  if vendor_dir.directory?
+    $stderr.write "\nUpdating Orbital SDK dependencies…"
+  else
+    $stderr.write "\nInstalling Orbital SDK dependencies…"
+  end
+
   Dir.chdir(project_root.to_s) do
     system(ENV, "bundle", "install", "--quiet")
   end
+
+  Kernel.exit(1) unless $?.success?
+  $stderr.write " done.\n\n"
 end
 
 require 'bundler/setup'
