@@ -1,10 +1,12 @@
-require 'singleton'
 require 'ostruct'
 require 'pathname'
-require 'uri'
+# require 'uri'
 require 'set'
 
-require_relative 'errors'
+require 'orbital/errors'
+# require_relative 'errors'
+
+module Orbital; end
 
 class Orbital::Environment
   def initialize(wd:, sdk_root:, shell_env:)
@@ -18,6 +20,8 @@ class Orbital::Environment
     if @project
       @project.environment = self
     end
+
+    @validations_done = Set.new
   end
 
   attr_reader :sdk
@@ -32,9 +36,8 @@ class Orbital::Environment
     @project
   end
 
-  @validations_done = Set.new
   def validate(validation_name)
-    return true if @validations_done.has?(validation_name)
+    return true if @validations_done.member?(validation_name)
     yield
     @validations_done.add(validation_name)
   end
@@ -110,11 +113,11 @@ end
 
 class Orbital::Environment::Project
   def self.detect(wd)
-    result = IO.popen(['git', 'rev-parse', '--show-toplevel'], err: [:child, :out], chdir: root.expand_path.to_s){ |io| io.read }
+    result = IO.popen(['git', 'rev-parse', '--show-toplevel'], err: [:child, :out], chdir: wd.expand_path.to_s){ |io| io.read }
 
     if $?.success?
       toplevel_path = Pathname.new(result.strip).expand_path
-      proj = self.class.new(toplevel_path)
+      proj = self.new(toplevel_path)
     else
       nil
     end

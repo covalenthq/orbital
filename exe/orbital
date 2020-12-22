@@ -4,13 +4,13 @@
 require 'pathname'
 require 'rubygems'
 
-project_root = Pathname.new(__FILE__).realpath.parent.parent.expand_path
+sdk_root = Pathname.new(__FILE__).realpath.parent.parent.expand_path
 
-gemfile_path = project_root / 'Gemfile'
-lockfile_path = project_root / 'Gemfile.lock'
-gemspec_path = project_root / 'orbital.gemspec'
-vendor_dir = project_root / 'vendor'
-lib_dir = project_root / 'lib'
+gemfile_path = sdk_root / 'Gemfile'
+lockfile_path = sdk_root / 'Gemfile.lock'
+gemspec_path = sdk_root / 'orbital.gemspec'
+vendor_dir = sdk_root / 'vendor'
+lib_dir = sdk_root / 'lib'
 
 ENV['BUNDLE_GEMFILE'] ||= gemfile_path.to_s
 ENV['BUNDLE_PATH'] = vendor_dir.to_s
@@ -31,7 +31,7 @@ unless vendor_active_dir and deps_mtime <= vendor_active_dir.mtime
     $stderr.write "\nInstalling Orbital SDK dependencies…"
   end
 
-  Dir.chdir(project_root.to_s) do
+  Dir.chdir(sdk_root.to_s) do
     system(ENV, "bundle", "install", "--quiet")
   end
 
@@ -50,8 +50,16 @@ Signal.trap('INT') do
   exit(1)
 end
 
+require 'json'
+
+environment_config_flags = [
+  '--workdir', Dir.pwd,
+  '--sdkroot', sdk_root.to_s,
+  '--shellenv', ENV.to_h.to_json
+]
+
 begin
-  Orbital::CLI.start(ARGV)
+  Orbital::CLI.start(ARGV + environment_config_flags)
 rescue Orbital::CommandValidationError => err
   $stderr.puts(["\n🛑 " + err.message].to_flat_string)
 

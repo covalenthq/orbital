@@ -8,7 +8,7 @@ module Orbital
   class CLI < Thor
     class_option :workdir, hide: true, required: true
     class_option :sdkroot, hide: true, required: true
-    class_option :shellenv, hide: true, type: :hash, required: true
+    class_option :shellenv, hide: true, required: true
 
     def self.exit_on_failure?
       true

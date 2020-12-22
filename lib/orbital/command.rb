@@ -11,9 +11,9 @@ module Orbital
       options = options.dup
 
       @environment = env || Orbital::Environment.new(
-        wd: options.delete(:workdir),
-        sdk_root: options.delete(:sdkroot),
-        shell_env: options.delete(:shellenv)
+        wd: Pathname.new(options.delete(:workdir)),
+        sdk_root: Pathname.new(options.delete(:sdkroot)),
+        shell_env: JSON.parse(options.delete(:shellenv))
       )
 
       @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
