@@ -1,32 +1,36 @@
 # frozen_string_literal: true
 
-require 'forwardable'
 require 'paint'
 require 'orbital/errors'
 require 'orbital/core_ext/to_flat_string'
+require 'recursive-open-struct'
 
 module Orbital
   class Command
-    extend Forwardable
+    def initialize(options, env = nil)
+      options = options.dup
 
-    def sdk_root
-      @sdk_root ||= Pathname.new(__dir__).parent.parent.expand_path
+      @environment = env || Orbital::Environment.new(
+        wd: options.delete(:workdir),
+        sdk_root: options.delete(:sdkroot),
+        shell_env: options.delete(:shellenv)
+      )
+
+      @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
     end
+
+    def sibling_command(command_klass, **options)
+      command_klass.new(options, @environment)
+    end
+
+    attr_accessor :options
 
     def project_root
-      return @project_root if @project_root
-
-      result = IO.popen(['git', 'rev-parse', '--show-toplevel'], err: [:child, :out]){ |io| io.read }
-
-      fatal "command must be run within a git worktree" unless $?.success?
-
-      @project_root = Pathname.new(result.strip).expand_path
+      @environment.project!.root
     end
 
-    def_delegators :command
-
     def fatal(*args)
-      raise Orbital::CLI::FatalError.new(*args)
+      raise Orbital::CommandValidationError.new(*args)
     end
 
     LOG_STYLES = {
@@ -55,11 +59,6 @@ module Orbital
         NotImplementedError,
         "#{self.class}##{__method__} must be implemented"
       )
-    end
-
-    def command(**options)
-      require 'tty-command'
-      TTY::Command.new(options)
     end
 
     def run(*cmdline, **kwargs)

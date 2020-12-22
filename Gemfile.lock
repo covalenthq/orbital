@@ -6,7 +6,8 @@ PATH
       k8s-ruby
       paint
       rake (~> 13.0)
-      thor
+      recursive-open-struct (~> 1.0, >= 1.0.1)
+      thor (~> 1.0.1)
       toml
       tty-command (~> 0.10.0)
       tty-link (~> 0.1.1)

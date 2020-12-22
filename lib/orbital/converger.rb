@@ -20,15 +20,19 @@ end
 
 module Orbital; end
 class Orbital::Converger < Rake::Application
-  def initialize
-    super
+  def initialize(command)
+    super()
 
     @paths = OpenStruct.new
+
     @paths.homedir = Pathname.new(ENV['HOME'])
-    @paths.prefix = Pathname.new(__FILE__).parent.parent.parent
-    @paths.state_dir = @paths.prefix / 'var'
     @paths.k8s_config = @paths.homedir / '.kube' / 'config'
-    @paths.local_resources = @paths.prefix / 'share' / 'resources'
+
+    @paths.project_root = project_root
+    @paths.sdk_root = sdk_root
+    @paths.state_dir = @paths.sdk_root / 'var'
+    @paths.local_resources = @paths.sdk_root / 'share' / 'resources'
+
 
     @prompt = TTY::Prompt.new
 

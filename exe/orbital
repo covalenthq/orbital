@@ -4,7 +4,7 @@
 require 'pathname'
 require 'rubygems'
 
-project_root = Pathname.new(__dir__).parent.expand_path
+project_root = Pathname.new(__FILE__).realpath.parent.parent.expand_path
 
 gemfile_path = project_root / 'Gemfile'
 lockfile_path = project_root / 'Gemfile.lock'
@@ -51,8 +51,8 @@ Signal.trap('INT') do
 end
 
 begin
-  Orbital::CLI.start
-rescue Orbital::CLI::FatalError => err
+  Orbital::CLI.start(ARGV)
+rescue Orbital::CommandValidationError => err
   $stderr.puts(["\n🛑 " + err.message].to_flat_string)
 
   if err.additional_info

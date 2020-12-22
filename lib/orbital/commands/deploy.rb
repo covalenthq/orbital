@@ -16,43 +16,15 @@ require 'orbital/core_ext/to_flat_string'
 module Orbital; end
 module Orbital::Commands; end
 class Orbital::Commands::Deploy < Orbital::Command
-  def initialize(options)
-    @options = OpenStruct.new(options)
-
-    appctl_config_path = self.project_root / '.appctlconfig'
-
-    unless appctl_config_path.file?
-      fatal "orbital-deploy must be run under a Git worktree containing an .appctlconfig"
-    end
-
-    @appctl_config = YAML.load(appctl_config_path.read)
-    @deployment_worktree_root = self.project_root / @appctl_config['deploy_repo_path']
+  def initialize(*opts)
+    super(*opts)
+    @environment.appctl.select_deploy_environment(@options.env)
   end
 
-  def tag=(new_tag)
-    @options.tag = new_tag
-  end
-
-  def app_name
-    @appctl_config['application_name']
-  end
-
-  def target_environments
-    return @target_environments if @target_environments
-
-    appctl_envs_path = @deployment_worktree_root / 'environments.yaml'
-
-    unless appctl_envs_path.file?
-      fatal "deployment repo has not yet been cloned"
-    end
-
-    @target_environments = YAML.load(appctl_envs_path.read)['envs'].map{ |e| [e['name'], e] }.to_h
-  end
-
-  def validate_environment
+  def validate_environment!
     return if @environment_validated
 
-    log :step, "ensure deploy environment is sane"
+    log :step, "ensure shell environment is sane for deploy"
 
     gcloud_install_doc = [link_to(
       "https://cloud.google.com/sdk/docs/install",
@@ -66,7 +38,9 @@ class Orbital::Commands::Deploy < Orbital::Command
         gcloud_install_doc
       end
 
-      exec_exist! 'kubectl', kubectl_install_doc
+      @environment.validate :cmd_kubectl do
+        exec_exist! 'kubectl', kubectl_install_doc
+      end
     end
 
     unless @options.remote
@@ -75,49 +49,60 @@ class Orbital::Commands::Deploy < Orbital::Command
       else
         gcloud_install_doc
       end
-      exec_exist! 'appctl', appctl_install_doc
-
-      unless `git status --porcelain`.strip.empty?
-        log :failure, "git worktree is dirty."
-        fatal Paint["appctl(1)", :bold] + " insists on a clean worktree. Please commit or discard your changes."
+      @environment.validate :cmd_appctl do
+        exec_exist! 'appctl', appctl_install_doc
       end
-      log :success, "git worktree is clean"
+
+      @environment.validate :git_worktree_clean do
+        unless `git status --porcelain`.strip.empty?
+          log :failure, "git worktree is dirty."
+          fatal Paint["appctl(1)", :bold] + " insists on a clean worktree. Please commit or discard your changes."
+        end
+        log :success, "git worktree is clean"
+      end
+    end
+
+    @environment.validate :has_appctlconfig do
+      self.appctl!
+      log :success, "project is configured for appctl"
     end
 
     @environment_validated = true
   end
 
   def execute(input: $stdin, output: $stdout)
-    self.validate_environment
+    self.validate_environment!
 
     if @options.remote
+      unless @environment.appctl.deployment_worktree
+        self.clone_deployment_repo
+      end
+
       log :step, "trigger Github Actions workflow 'appctl-apply' on deployment repo"
 
       require_relative 'trigger'
 
-      trigger_cmd = Orbital::Commands::Trigger.new({
-        "repo" => "deployment",
-        "workflow" => "appctl-apply"
-      })
+      trigger_cmd = sibling_command(Orbital::Commands::Trigger,
+        repo: "deployment",
+        workflow: "appctl-apply"
+      )
 
-      appctl_active_env = self.target_environments[@options.env]
+      active_env = @environment.appctl.active_deploy_environment
 
       trigger_cmd.add_inputs({
-        target_env: @options.env,
+        target_env: active_env.name,
         release_name: @options.tag,
-        gcp_project_name: appctl_active_env['project'],
-        gcp_compute_zone: appctl_active_env['compute']['zone'],
-        gke_cluster_name: appctl_active_env['cluster_name']
+        gcp_project_name: active_env.project,
+        gcp_compute_zone: active_env.compute.zone,
+        gke_cluster_name: active_env.cluster_name
       })
 
       fatal "workflow failed!" unless trigger_cmd.execute
     else
-      deployment_repo_default_branch = "#{self.app_name}-environment"
-
-      if @deployment_worktree_root.directory?
+      if @environment.appctl.deployment_worktree
         log :step, "fast-forward appctl deployment repo"
 
-        Dir.chdir(@deployment_worktree_root.to_s) do
+        Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
           run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
 
           upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
@@ -132,23 +117,13 @@ class Orbital::Commands::Deploy < Orbital::Command
           end
         end
       else
-        log :step, "clone appctl deployment repo"
-
-        deployment_repo_uri = URI(@appctl_config['deployment_repo_url'])
-
-        clone_uri_str = "git@#{deployment_repo_uri.hostname}:#{deployment_repo_uri.path[1..-1]}.git"
-
-        run 'git', 'clone', clone_uri_str, @deployment_worktree_root.to_s
-
-        Dir.chdir(@deployment_worktree_root.to_s) do
-          run 'git', 'remote', 'rename', 'origin', 'upstream'
-        end
+        self.clone_deployment_repo
       end
 
       log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
-      Dir.chdir(@deployment_worktree_root.to_s) do
-        run 'git', 'checkout', deployment_repo_default_branch
+      Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
+        run 'git', 'checkout', @environment.appctl.deployment_repo.default_branch
       end
 
       log :step, ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
@@ -158,12 +133,12 @@ class Orbital::Commands::Deploy < Orbital::Command
     unless @options.wait
       log :break
       log :celebrate, [
-        Paint[self.app_name, :bold],
+        Paint[@environment.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed.\n\nPlease ",
         link_to(
-          self.gke_app_dashboard_uri,
+          @environment.appctl.gke_app_dashboard_uri,
           "visit the Google Cloud dashboard for this Kubernetes Application"
         ),
         " to ensure resources have converged."
@@ -176,7 +151,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     if self.wait_for_k8s_to_converge
       log :break
       log :celebrate, [
-        Paint[self.app_name, :bold],
+        Paint[@environment.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed."
@@ -185,12 +160,12 @@ class Orbital::Commands::Deploy < Orbital::Command
       log :break
       log :info, [
         "Kubernetes resources for ",
-        Paint[self.app_name, :bold],
+        Paint[@environment.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " have been loaded into the cluster; but the cluster state did not converge. Please ",
         link_to(
-          self.gke_app_dashboard_uri,
+          @environment.appctl.gke_app_dashboard_uri,
           "visit the Google Cloud dashboard for this Kubernetes Application"
         ),
         " to determine its status."
@@ -198,10 +173,14 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
   end
 
-  def gke_app_dashboard_uri
-    appctl_active_env = self.target_environments[@options.env]
+  def clone_deployment_repo
+    log :step, "clone appctl deployment repo"
 
-    URI("https://console.cloud.google.com/kubernetes/application/#{appctl_active_env['compute']['zone']}/#{appctl_active_env['cluster_name']}/#{appctl_active_env['namespace']}/#{self.app_name}?project=#{appctl_active_env['project']}")
+    run 'git', 'clone', @environment.appctl.deployment_repo.clone_uri, @environment.appctl.deployment_worktree_root.to_s
+
+    Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
+      run 'git', 'remote', 'rename', 'origin', 'upstream'
+    end
   end
 
   class ConvergePoller < Orbital::Spinner::PollingSpinner

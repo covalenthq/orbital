@@ -28,11 +28,12 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'tty-command', '~> 0.10.0'
   spec.add_runtime_dependency 'tty-link', '~> 0.1.1'
   spec.add_runtime_dependency 'tty-which', '~> 0.4.2'
-  spec.add_runtime_dependency 'thor'
+  spec.add_runtime_dependency 'thor', '~> 1.0.1'
   spec.add_runtime_dependency 'activesupport'
   spec.add_runtime_dependency 'k8s-ruby'
   spec.add_runtime_dependency 'toml'
   spec.add_runtime_dependency 'paint'
+  spec.add_runtime_dependency 'recursive-open-struct', '~> 1.0', '>= 1.0.1'
 
   spec.add_development_dependency 'rspec', '~> 3.10.0'
   spec.add_development_dependency 'pry'

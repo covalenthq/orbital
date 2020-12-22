@@ -2,24 +2,13 @@
 
 require 'thor'
 require 'orbital/core_ext/to_flat_string'
+require 'orbital/environment'
 
 module Orbital
-  # Handle the application command line parsing
-  # and the dispatch to various command objects
-  #
-  # @api public
   class CLI < Thor
-    # Error raised by this runner
-    Error = Class.new(StandardError)
-
-    class FatalError < Error
-      def initialize(msg, additional_info = nil)
-        @additional_info = additional_info
-        super(msg.to_flat_string)
-      end
-
-      attr_reader :additional_info
-    end
+    class_option :workdir, hide: true, required: true
+    class_option :sdkroot, hide: true, required: true
+    class_option :shellenv, hide: true, type: :hash, required: true
 
     def self.exit_on_failure?
       true

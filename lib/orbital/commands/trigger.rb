@@ -18,14 +18,16 @@ end
 module Orbital; end
 module Orbital::Commands; end
 class Orbital::Commands::Trigger < Orbital::Command
-  def initialize(options)
-    @options = OpenStruct.new(options)
+  def initialize(*args)
+    super(*args)
 
-    @options.input =
-      (@options.input || []).map do |kv|
+    @options.input ||= {}
+    if @options.input.kind_of?(Array)
+      @options.input = @options.input.map do |kv|
         k, v = kv.split('=', 2)
         [k.intern, v]
       end.to_h
+    end
 
     unless @options.workflow.end_with?('.yml') or @options.workflow.end_with?('.yaml')
       @options.workflow += '.yml'
@@ -40,25 +42,18 @@ class Orbital::Commands::Trigger < Orbital::Command
       fatal "invalid value for flag --repo"
     end
 
-    appctl_config_path = self.project_root / '.appctlconfig'
-
-    unless appctl_config_path.file?
-      fatal "orbital-trigger must be run under a Git worktree containing an .appctlconfig"
-    end
-
-    @appctl_config = YAML.load(appctl_config_path.read)
-
     case @options.repo
     when :app
-      @options.repo = URI(@appctl_config['app_repo_url']).path[1..-1]
+      @options.repo = @environment.appctl.app_repo.uri.path[1..-1]
+      @options.branch ||= @environment.appctl.app_repo.default_branch
     when :deployment
-      @options.repo = URI(@appctl_config['deployment_repo_url']).path[1..-1]
-      @options.branch ||= "#{@appctl_config['application_name']}-environment"
+      @options.repo = @environment.appctl.deployment_repo.uri.path[1..-1]
+      @options.branch ||= @environment.appctl.deployment_repo.default_branch
+    else
+      @options.branch ||= "master"
     end
 
-    @options.branch ||= "master"
-
-    @github = Orbital::Github::Client.new(self.project_root)
+    @github = Orbital::Github::Client.new(@environment.project.root)
   end
 
   def add_inputs(hsh)
