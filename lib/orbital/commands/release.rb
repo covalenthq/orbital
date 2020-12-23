@@ -34,22 +34,23 @@ class Orbital::Commands::Release < Orbital::Command
       end
     end
 
-    @environment.validate :git_worktree_clean do
-      unless `git status --porcelain`.strip.empty?
-        log :failure, "git worktree is dirty."
-        fatal "Releases can only be built against a clean worktree. Please commit or discard your changes."
-      end
-      log :success, "git worktree is clean"
-    end
-
     @environment.validate :has_project do
       @environment.project!
       log :success, "project is available"
     end
 
+    @environment.validate :git_worktree_clean do
+      if @environment.project.worktree_clean?
+        log :success, "project worktree is clean"
+      else
+        log :failure, "project worktree is dirty."
+        fatal "Releases can only be built against a clean worktree. Please commit or discard your changes."
+      end
+    end
+
     @environment.validate :has_appctlconfig do
       @environment.project.appctl!
-      log :success, "project is configured for appctl"
+      log :success, ["project is configured for appctl (", Paint[".appctlconfig", :bold], " is available)"]
     end
 
     @environment_validated = true

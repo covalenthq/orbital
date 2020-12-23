@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'paint'
 require 'pathname'
 require 'yaml'
 require 'json'
@@ -8,6 +7,11 @@ require 'ostruct'
 require 'singleton'
 require 'uri'
 require 'set'
+require 'pp'
+require 'date'
+
+require 'k8s-ruby'
+require 'paint'
 
 require 'orbital/command'
 require 'orbital/spinner/polling_spinner'
@@ -31,18 +35,6 @@ class Orbital::Commands::Deploy < Orbital::Command
       "install the Google Cloud SDK."
     ), '.']
 
-    if @options.wait
-      kubectl_install_doc = if exec_exist? 'gcloud'
-        ["run:\n", "  ", Paint["gcloud components install kubectl", :bold]]
-      else
-        gcloud_install_doc
-      end
-
-      @environment.validate :cmd_kubectl do
-        exec_exist! 'kubectl', kubectl_install_doc
-      end
-    end
-
     unless @options.remote
       appctl_install_doc = if exec_exist? 'gcloud'
         ["run:\n", "  ", Paint["gcloud components install pkg", :bold]]
@@ -53,23 +45,39 @@ class Orbital::Commands::Deploy < Orbital::Command
         exec_exist! 'appctl', appctl_install_doc
       end
 
-      @environment.validate :git_worktree_clean do
-        unless `git status --porcelain`.strip.empty?
-          log :failure, "git worktree is dirty."
-          fatal Paint["appctl(1)", :bold] + " insists on a clean worktree. Please commit or discard your changes."
-        end
-        log :success, "git worktree is clean"
-      end
-    end
-
     @environment.validate :has_project do
       @environment.project!
       log :success, "project is available"
     end
 
+    @environment.validate :git_worktree_clean do
+      if @environment.project.worktree_clean?
+        log :success, "project worktree is clean"
+      else
+        log :failure, "project worktree is dirty."
+        fatal Paint["appctl(1)", :bold] + " insists on a clean worktree. Please commit or discard your changes."
+      end
+    end
+
     @environment.validate :has_appctlconfig do
       @environment.project.appctl!
-      log :success, "project is configured for appctl"
+      log :success, ["project is configured for appctl (", Paint[".appctlconfig", :bold], " is available)"]
+    end
+
+    if @options.wait
+      @environment.validate :has_kubeconfig do
+        if @environment.shell.kubectl_config_path.file?
+          log :success, ["shell is configured with a kubectl cluster (", Paint["~/.kube/config", :bold], " is available)"]
+        elsif exec_exist? 'gcloud'
+          log :success, [Paint["~/.kube/config", :bold], " can be configured by ", Paint["gcloud(1)", :bold]]
+        else
+          fatal [
+            Paint["~/.kube/config", :bold], " is not configured, and ",
+            Paint["gcloud(1)", :bold], "is not available to generate it. Please ",
+            gcloud_install_doc
+          ]
+        end
+      end
     end
 
     @environment_validated = true
@@ -77,6 +85,35 @@ class Orbital::Commands::Deploy < Orbital::Command
 
   def execute(input: $stdin, output: $stdout)
     self.validate_environment!
+
+    active_env = @environment.project.appctl.active_deploy_environment
+    k8s_releasetrack_prev_transition_time = Time.at(0)
+
+    if @options.wait
+      self.k8s_client
+
+      log :step, "examine existing k8s resources"
+      begin
+        resource =
+          self.k8s_client.api('app.gke.io/v1beta1')
+          .resource('releasetracks', namespace: @environment.project.appctl.active_deploy_environment.namespace)
+          .get(@environment.project.appctl.application_name)
+
+        last_transition_dt_str =
+          resource.status.conditions.last.lastTransitionTime
+
+        k8s_releasetrack_prev_transition_time =
+          DateTime.parse(last_transition_dt_str).to_time
+
+        log :success, [
+          "last released to env '", Paint[@options.env, :bold], "'",
+          " on ", Paint[k8s_releasetrack_prev_transition_time.localtime.strftime("%Y-%m-%d"), :bold],
+          " at ", Paint[k8s_releasetrack_prev_transition_time.localtime.strftime("%I:%M:%S %p %Z"), :bold]
+        ]
+      rescue => e
+        log :info, "no existing resources found for env '", Paint[@options.env, :bold], "'"
+      end
+    end
 
     if @options.remote
       unless @environment.project.appctl.deployment_worktree
@@ -91,8 +128,6 @@ class Orbital::Commands::Deploy < Orbital::Command
         repo: "deployment",
         workflow: "appctl-apply"
       )
-
-      active_env = @environment.project.appctl.active_deploy_environment
 
       trigger_cmd.add_inputs({
         target_env: active_env.name,
@@ -141,10 +176,12 @@ class Orbital::Commands::Deploy < Orbital::Command
         Paint[@environment.project.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
-        " deployed.\n\nPlease ",
+        " deployed to env '",
+        Paint[@options.env, :bold],
+        "'.\n\nPlease ",
         link_to(
           @environment.project.appctl.gke_app_dashboard_uri,
-          "visit the Google Cloud dashboard for this Kubernetes Application"
+          "visit the Google Kubernetes Engine details page for this application"
         ),
         " to ensure resources have converged."
       ]
@@ -152,8 +189,30 @@ class Orbital::Commands::Deploy < Orbital::Command
       return
     end
 
+    self.k8s_client
+
     log :step, "wait for k8s to converge"
-    if self.wait_for_k8s_to_converge
+
+    wait_text = [
+        "Waiting for application resource '",
+        Paint[@environment.project.appctl.application_name, :bold],
+        "' in env '",
+        Paint[@options.env, :bold],
+        "' to match release ",
+        Paint[@options.tag, :bold]
+    ]
+
+    poller = K8sConvergePoller.new(wait_text: wait_text)
+    poller.prev_transition_time = k8s_releasetrack_prev_transition_time
+    poller.k8s_client = self.k8s_client
+    poller.tag_to_match = @options.tag
+    poller.k8s_app_name = @environment.project.appctl.application_name
+    poller.k8s_namespace = active_env.namespace
+
+    poller.run
+
+    case poller.state
+    when :success
       log :break
       log :celebrate, [
         Paint[@environment.project.appctl.application_name, :bold],
@@ -161,21 +220,49 @@ class Orbital::Commands::Deploy < Orbital::Command
         Paint[@options.tag, :bold],
         " deployed."
       ]
-    else
+    when :timeout
+      log :warning, "No activity after 120s; giving up!"
+
       log :break
       log :info, [
         "Kubernetes resources for ",
         Paint[@environment.project.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
-        " have been loaded into the cluster; but the cluster state did not converge. Please ",
-        link_to(
-          @environment.project.appctl.gke_app_dashboard_uri,
-          "visit the Google Cloud dashboard for this Kubernetes Application"
-        ),
-        " to determine its status."
+        " have been loaded into the '",
+        Paint[@options.env, :bold],
+        "' environment; but the cluster state did not converge."
       ]
+    when :failure
+      log :info, "Last poll result:"
+      log :break
+      pp poller.result.to_h
+
+      log :error, "Deploy failed!"
     end
+
+    log :break
+    log :info, [
+      "You can ",
+      link_to(
+        @environment.project.appctl.gke_app_dashboard_uri,
+        "visit the Google Kubernetes Engine details page for this application"
+      ),
+      " to view detailed status information."
+    ]
+  end
+
+  def k8s_client
+    return @k8s_client if @k8s_client
+
+    unless @environment.shell.kubectl_config_path.file?
+      log :step, "get k8s cluster credentials"
+      run "gcloud", "container", "clusters", "get-credentials", active_env.cluster_name,
+        "--project=#{active_env.project}",
+        "--zone=#{active_env.compute.zone}"
+    end
+
+    @k8s_client = K8s::Client.config(K8s::Config.load_file(@environment.shell.kubectl_config_path))
   end
 
   def clone_deployment_repo
@@ -188,30 +275,53 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
   end
 
-  class ConvergePoller < Orbital::Spinner::PollingSpinner
+  class K8sConvergePoller < Orbital::Spinner::PollingSpinner
+    attr_accessor :k8s_client
     attr_accessor :k8s_namespace
     attr_accessor :k8s_app_name
     attr_accessor :tag_to_match
-
-    def status_command
-      [
-        'kubectl', 'get',
-        'releasetracks.app.gke.io',
-        @k8s_app_name,
-        '--namespace', @k8s_namespace,
-        '--output', 'jsonpath={.status.conditions[0]}'
-      ]
-    end
+    attr_accessor :prev_transition_time
 
     def poll
-      JSON.parse(IO.popen(self.status_command){ |io| io.read }.strip)
+      begin
+        @k8s_client.api('app.gke.io/v1beta1')
+        .resource('releasetracks', namespace: @k8s_namespace)
+        .get(@k8s_app_name)
+        .status
+      rescue K8s::Error::NotFound
+        nil
+      end
+    end
+
+    def transition_time(resource_status)
+      begin
+        last_transition_dt_str = resource_status.conditions.last.lastTransitionTime
+        DateTime.parse(last_transition_dt_str).to_time
+      rescue => e
+        Time.at(0)
+      end
     end
 
     def state
-      if @result and @result["type"] == "Completed" && @result["status"] == "True" && @result["message"].match?(@tag_to_match)
-        :success
+      if @result and transition_time(@result) > @prev_transition_time
+        last_cond = @result.conditions.last
+        if last_cond.type == "Completed" and last_cond.status == "True" and last_cond.reason == "ApplicationUpdated"
+          if @result.currentVersion.start_with?(@tag_to_match)
+            # updated to version we expected
+            :success
+          else
+            # updated to some other version (conflicting update?)
+            :failure
+          end
+        elsif last_cond.type == "Completed"
+          puts "intermediate transition step info:"
+          pp @result.to_h
+          :in_progress
+        else
+          :in_progress
+        end
       elsif Time.now - @started_at >= 120.0
-        :failure
+        :timeout
       elsif @poll_attempts > 0
         :in_progress
       else
@@ -222,29 +332,5 @@ class Orbital::Commands::Deploy < Orbital::Command
     def resolved?
       not([:in_progress, :queued].include?(self.state))
     end
-  end
-
-  def wait_for_k8s_to_converge
-    wait_text = [
-        "Waiting for application resource '",
-        Paint[@environment.project.appctl.application_name, :bold],
-        "' in env '",
-        Paint[@options.env, :bold],
-        "' to match release ",
-        Paint[@options.tag, :bold]
-    ]
-
-    poller = ConvergePoller.new(wait_text: wait_text)
-    poller.tag_to_match = @options.tag
-    poller.k8s_app_name = @environment.project.appctl.application_name
-    poller.k8s_namespace = @environment.project.appctl.active_deploy_environment.namespace
-
-    poller.run
-
-    if poller.state == :failure
-      log :warning, "No activity after 120s; giving up!"
-    end
-
-    poller.state == :success
   end
 end

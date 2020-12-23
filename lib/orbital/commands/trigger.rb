@@ -74,10 +74,10 @@ class Orbital::Commands::Trigger < Orbital::Command
       @options.repo,
       @options.workflow,
       @options.branch,
-      @options.input.map{ |k, v| [k.to_s, v.to_s] }.to_h
+      @options.input.to_h.map{ |k, v| [k.to_s, v.to_s] }.to_h
     )
 
-    log :success, "send workflow_dispatch event"
+    log :success, ["send ", Paint["workflow_dispatch", :italic], " event"]
 
     newest_workflow_run_id_after =
       Orbital::Spinner::SimplePollingSpinner.new(

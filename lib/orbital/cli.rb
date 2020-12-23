@@ -56,7 +56,7 @@ module Orbital
     method_option :remote, aliases: '-r', type: :boolean, default: false,
                            desc: "Run deploy remotely using a Github Actions workflow."
     method_option :wait, aliases: '-w', type: :boolean, default: true,
-                         desc: "Wait for k8s state to converge. (requires kubectl(1))"
+                         desc: "Wait for k8s state to converge."
     def release(*)
       require_relative 'commands/release'
       Orbital::Commands::Release.new(options).execute
@@ -70,7 +70,7 @@ module Orbital
     method_option :remote, aliases: '-r', type: :boolean, default: false,
                            desc: "Run deploy remotely using a Github Actions workflow."
     method_option :wait, aliases: '-w', type: :boolean, default: true,
-                         desc: "Wait for k8s state to converge. (requires kubectl(1))"
+                         desc: "Wait for k8s state to converge."
     def deploy(*)
       require_relative 'commands/deploy'
       Orbital::Commands::Deploy.new(options).execute

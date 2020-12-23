@@ -9,6 +9,14 @@ require 'orbital/errors'
 module Orbital; end
 
 class Orbital::Environment
+  def self.default
+    self.new(
+      wd: Pathname.new(Dir.pwd).expand_path,
+      sdk_root: Pathname.new(__FILE__).parent.parent.parent.expand_path,
+      shell_env: ENV.to_h
+    )
+  end
+
   def initialize(wd:, sdk_root:, shell_env:)
     @sdk = SDK.new(sdk_root)
     @shell = Shell.new(shell_env)
@@ -63,6 +71,10 @@ class Orbital::Environment::Shell
         @homedir / '.local'
       end
   end
+
+  def kubectl_config_path
+    @homedir / '.kube' / 'config'
+  end
 end
 
 class Orbital::Environment::SDK
@@ -84,6 +96,16 @@ class Orbital::Environment::SDK
   def git_worktree?
     # can be a directory, or a file if `git worktree add` is used
     (@root / '.git').exist?
+  end
+
+  def worktree_clean?
+    return @worktree_clean if @probed_worktree_clean
+    return false unless self.git_worktree?
+
+    @probed_worktree_clean = true
+    Dir.chdir(@root.to_s) do
+      @worktree_clean = `git status --porcelain`.strip.empty?
+    end
   end
 
   def install_prefix
@@ -130,6 +152,14 @@ class Orbital::Environment::Project
   attr_accessor :environment
 
   attr_reader :root
+
+  def worktree_clean?
+    return @worktree_clean if @probed_worktree_clean
+    @probed_worktree_clean = true
+    Dir.chdir(@root.to_s) do
+      @worktree_clean = `git status --porcelain`.strip.empty?
+    end
+  end
 
   def config_path
     @root / '.orbital.yaml'

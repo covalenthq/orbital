@@ -18,12 +18,11 @@ class Orbital::Commands::Update < Orbital::Command
     end
 
     @environment.validate :git_worktree_clean do
-      Dir.chdir(@environment.sdk.root.to_s) do
-        unless `git status --porcelain`.strip.empty?
-          fatal "Orbital SDK worktree is dirty"
-        end
+      if @environment.sdk.worktree_clean?
+        log :success, "Orbital SDK worktree is clean"
+      else
+        fatal "Orbital SDK worktree is dirty"
       end
-      log :success, "Orbital SDK worktree is clean"
     end
 
     @environment.validate :git_worktree_is_on_master_branch do
