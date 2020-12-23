@@ -39,7 +39,7 @@ class Orbital::Commands::Release < Orbital::Command
       log :success, "project is available"
     end
 
-    @environment.validate :git_worktree_clean do
+    @environment.validate :project_worktree_clean do
       if @environment.project.worktree_clean?
         log :success, "project worktree is clean"
       else

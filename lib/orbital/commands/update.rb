@@ -17,7 +17,7 @@ class Orbital::Commands::Update < Orbital::Command
       end
     end
 
-    @environment.validate :git_worktree_clean do
+    @environment.validate :sdk_worktree_clean do
       if @environment.sdk.worktree_clean?
         log :success, "Orbital SDK worktree is clean"
       else
