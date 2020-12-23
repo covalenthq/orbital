@@ -48,13 +48,14 @@ module Orbital
     end
 
     desc 'release', 'Burn a tagged release commit, and build an image from it'
-    method_option :imagebuild, aliases: '-b', type: :string, banner: 'STRATEGY',
-                               enum: ['local', 'github', 'cloudbuild'], default: 'local',
-                               desc: "Build Docker image with the given strategy."
-    method_option :deploy, aliases: '-d', type: :boolean,
-                           desc: "Deploy to staging automatically if release succeeds."
-    method_option :remote, aliases: '-r', type: :boolean, default: false,
-                           desc: "Run deploy remotely using a Github Actions workflow."
+    method_option :imagebuilder, aliases: '-i', type: :string, banner: 'STRATEGY',
+                                 enum: ['docker', 'github', 'cloudbuild'], default: 'docker',
+                                 desc: "Build Docker image with the given strategy."
+    method_option :deploy, aliases: '-d', type: :boolean, default: false,
+                         desc: "Automatically deploy if release succeeds."
+    method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
+                             enum: ['appctl', 'github', 'internal'], default: 'appctl',
+                             desc: "Deploy with the given strategy."
     method_option :wait, aliases: '-w', type: :boolean, default: true,
                          desc: "Wait for k8s state to converge."
     def release(*)
@@ -67,8 +68,9 @@ module Orbital
                         desc: "Release tag to deploy."
     method_option :env, aliases: '-e', type: :string, default: "staging",
                         desc: "appctl(1) environment to target."
-    method_option :remote, aliases: '-r', type: :boolean, default: false,
-                           desc: "Run deploy remotely using a Github Actions workflow."
+    method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
+                             enum: ['appctl', 'github', 'internal'], default: 'appctl',
+                             desc: "Deploy with the given strategy."
     method_option :wait, aliases: '-w', type: :boolean, default: true,
                          desc: "Wait for k8s state to converge."
     def deploy(*)

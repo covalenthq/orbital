@@ -10,14 +10,14 @@ module Orbital::Commands; end
 class Orbital::Commands::Release < Orbital::Command
   def initialize(*args)
     super(*args)
-    @options.imagebuild = @options.imagebuild.intern
+    @options.imagebuilder = @options.imagebuilder.intern
   end
 
   def validate_environment!
     return if @environment_validated
     log :step, "ensure shell environment is sane for release"
 
-    case @options.imagebuild
+    case @options.imagebuilder
     when :github, :cloudbuild
       @environment.validate :cmd_gcloud do
         exec_exist! 'gcloud', [link_to(
@@ -25,7 +25,7 @@ class Orbital::Commands::Release < Orbital::Command
           "install the Google Cloud SDK."
         ), '.']
       end
-    when :local
+    when :docker
       @environment.validate :cmd_docker do
         exec_exist! 'docker', [link_to(
           "https://docs.docker.com/get-docker/",
@@ -118,7 +118,7 @@ class Orbital::Commands::Release < Orbital::Command
       end
 
       with_temporary_git_tag(@release.tag) do
-        if @options.imagebuild == :github
+        if @options.imagebuilder == :github
           log :step, "push tag (and accompanying git objects)"
           run "git", "push", "origin", @release.tag.name
           @release.tag.state = :tentatively_pushed
@@ -126,7 +126,7 @@ class Orbital::Commands::Release < Orbital::Command
 
         log :step, "build and push Docker image #{@release.docker_image.ref}"
 
-        case @options.imagebuild
+        case @options.imagebuilder
         when :github
           gcloud_access_token = `gcloud auth print-access-token`.strip
           fatal "gcloud authentication error" unless $?.success?
@@ -157,7 +157,7 @@ class Orbital::Commands::Release < Orbital::Command
           run "gcloud", "builds", "submit", "--tag", @release.docker_image.ref, "."
           fatal "image build+push failed" unless $?.success?
           log :success, "image built and pushed"
-        when :local
+        when :docker
           run "docker", "build", "-t", @release.docker_image.ref, "."
           fatal "image build failed" unless $?.success?
           log :success, "image built"

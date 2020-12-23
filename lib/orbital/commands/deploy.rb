@@ -22,6 +22,7 @@ module Orbital::Commands; end
 class Orbital::Commands::Deploy < Orbital::Command
   def initialize(*opts)
     super(*opts)
+    @options.deployer = @options.deployer.intern
     @environment.project.appctl.select_deploy_environment(@options.env)
   end
 
@@ -35,7 +36,7 @@ class Orbital::Commands::Deploy < Orbital::Command
       "install the Google Cloud SDK."
     ), '.']
 
-    unless @options.remote
+    if @options.deployer == :appctl
       appctl_install_doc = if exec_exist? 'gcloud'
         ["run:\n", "  ", Paint["gcloud components install pkg", :bold]]
       else
@@ -43,6 +44,26 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
       @environment.validate :cmd_appctl do
         exec_exist! 'appctl', appctl_install_doc
+      end
+    end
+
+    if @options.deployer == :internal
+      @environment.validate :cmd_kustomize do
+        if exec_exist? 'kustomize'
+          @kustomize_command = ['kustomize']
+          log :success, ["have ", Paint["kustomize(1)", :bold]]
+        elsif exec_exist? 'kubectl'
+          @kustomize_command = ['kubectl', 'kustomize']
+          log :success, ["have ", Paint["kubectl(1)", :bold]]
+        else
+          fatal [
+            "Neither ", Paint["kustomize(1)", :bold],
+            " nor ", Paint["kubectl(1)", :bold],
+            " is available. Please install one.\n\n",
+            Paint["kubectl(1)", :bold], " comes with Docker; while ",
+            Paint["kustomize(1)", :bold], " is available standalone, or as part of the Google Cloud SDK."
+          ]
+        end
       end
     end
 
@@ -116,7 +137,50 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
     end
 
-    if @options.remote
+    case @options.deployer
+    when :internal
+      self.ensure_up_to_date_deployment_repo
+
+      self.k8s_client
+
+      log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+
+      # TODO:
+      #   - in app repo:
+      #     - generate hydrated config: run kustomize(1) against ".appctl/config/#{@options.env}" dir
+      #     - get commit hash of release tag in app repo
+      #   - in deployment repo:
+      #     - check out + fast-forward "#{@options.env}" branch
+      #     - update + git-add README (arbitrary) to ensure at least a trivial change is made
+      #     - update + git-add artifact.yaml with hydrated config
+      #     - git commit
+      #     - git tag as "#{@options.tag}-#{@options.env}-#{app_repo_commit_hash[0..7]}.#{seq}"
+      #       where `seq` increments in case of collision with existing tag
+      #     - push branch, tag to upstream
+
+      log :step, ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+
+      # TODO:
+      # - ensure kubectl current-context is pointed to target cluster
+      # - detect if k8s CRD releasetracks.app.gke.io is available; if not, abort
+      # - create "#{active_env.namespace}" namespace
+      # - create deployer ServiceAccount in namespace, and ClusterRoleBinding to deployer ClusterRole
+      # - create git-token secret in namespace (github token w/ read permission on deployment repo)
+      # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
+      # - if we switched kubectl contexts at the beginning, switch back
+
+    when :appctl
+      self.ensure_up_to_date_deployment_repo
+
+      log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+      run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
+      Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
+        run 'git', 'checkout', @environment.project.appctl.deployment_repo.default_branch
+      end
+
+      log :step, ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+      run "appctl", "apply", @options.env, "--from-tag", @options.tag
+    when :github
       unless @environment.project.appctl.deployment_worktree
         self.clone_deployment_repo
       end
@@ -139,36 +203,6 @@ class Orbital::Commands::Deploy < Orbital::Command
       })
 
       fatal "workflow failed!" unless trigger_cmd.execute
-    else
-      if @environment.project.appctl.deployment_worktree
-        log :step, "fast-forward appctl deployment repo"
-
-        Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
-          run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
-
-          upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
-
-          # move default branch to the end, so it ends up staying checked out
-          upstream_branches -= [@environment.project.appctl.deployment_repo.default_branch]
-          upstream_branches += [@environment.project.appctl.deployment_repo.default_branch]
-
-          upstream_branches.each do |branch|
-            run 'git', 'checkout', '--quiet', branch
-            run 'git', 'reset', '--hard', "upstream/#{branch}"
-          end
-        end
-      else
-        self.clone_deployment_repo
-      end
-
-      log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
-      run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
-      Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
-        run 'git', 'checkout', @environment.project.appctl.deployment_repo.default_branch
-      end
-
-      log :step, ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
-      run "appctl", "apply", @options.env, "--from-tag", @options.tag
     end
 
     unless @options.wait
@@ -264,6 +298,30 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
 
     @k8s_client = K8s::Client.config(K8s::Config.load_file(@environment.shell.kubectl_config_path))
+  end
+
+  def ensure_up_to_date_deployment_repo
+    unless @environment.project.appctl.deployment_worktree
+      self.clone_deployment_repo
+      return
+    end
+
+    log :step, "fast-forward appctl deployment repo"
+
+    Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
+      run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
+
+      upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
+
+      # move default branch to the end, so it ends up staying checked out
+      upstream_branches -= [@environment.project.appctl.deployment_repo.default_branch]
+      upstream_branches += [@environment.project.appctl.deployment_repo.default_branch]
+
+      upstream_branches.each do |branch|
+        run 'git', 'checkout', '--quiet', branch
+        run 'git', 'reset', '--hard', "upstream/#{branch}"
+      end
+    end
   end
 
   def clone_deployment_repo
