@@ -19,7 +19,7 @@ class Orbital::Commands::Release < Orbital::Command
 
     case @options.imagebuild
     when :github, :cloudbuild
-      @environment.validate :cmd_gcloud
+      @environment.validate :cmd_gcloud do
         exec_exist! 'gcloud', [link_to(
           "https://cloud.google.com/sdk/docs/install",
           "install the Google Cloud SDK."
@@ -43,12 +43,12 @@ class Orbital::Commands::Release < Orbital::Command
     end
 
     @environment.validate :has_project do
-      self.project!
+      @environment.project!
       log :success, "project is available"
     end
 
     @environment.validate :has_appctlconfig do
-      self.appctl!
+      @environment.project.appctl!
       log :success, "project is configured for appctl"
     end
 
@@ -82,9 +82,9 @@ class Orbital::Commands::Release < Orbital::Command
     @release.from_git_ref = `git rev-parse HEAD`.strip
     log :success, "get branch and/or ref to return to"
 
-    deployment = @environment.appctl.k8s_resource('base/deployment.yaml')
+    deployment = @environment.project.appctl.k8s_resource('base/deployment.yaml')
     @release.docker_image = OpenStruct.new(
-      name: deployment_doc.spec.template.spec.containers[0].image.split(":")[0]
+      name: deployment.spec.template.spec.containers[0].image.split(":")[0]
     )
     log :success, "get name of Docker image used in k8s deployment config"
 
@@ -136,7 +136,7 @@ class Orbital::Commands::Release < Orbital::Command
             repo: "app",
             workflow: "imagebuild",
             branch: @release.tag.name
-          })
+          )
 
           docker_registry_hostname, docker_image_name_path_part =
             @release.docker_image.name.split('/', 2)
@@ -193,7 +193,7 @@ class Orbital::Commands::Release < Orbital::Command
       template_path.open('w'){ |f| f.write(patched_doc) }
     end
 
-    kustomization_path = @environment.k8s_resources / 'base' / 'kustomization.yaml'
+    kustomization_path = @environment.project.appctl.k8s_resources / 'base' / 'kustomization.yaml'
     kustomization_doc = YAML.load(kustomization_path.read)
     kustomization_doc['images'] ||= []
     kustomization_doc['images'].push({

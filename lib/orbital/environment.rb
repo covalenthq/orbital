@@ -140,8 +140,8 @@ class Orbital::Environment::Project
     @probed_orbital_config = true
 
     @orbital_config =
-      if self.orbital_config_path.file?
-        YAML.load(self.orbital_config_path.read)
+      if self.config_path.file?
+        YAML.load(self.config_path.read)
       end
   end
 
@@ -149,7 +149,7 @@ class Orbital::Environment::Project
     return @template_paths if @template_paths
 
     @template_paths =
-      if conf = self.config && tpl_paths = conf['burn_in_template_paths']
+      if conf = self.config && not(conf.nil?) && tpl_paths = conf['burn_in_template_paths']
         tpl_paths.map{ |rel_path| @root / rel_path }
       else
         []
@@ -160,7 +160,7 @@ class Orbital::Environment::Project
     return @appctl if @probed_appctl
     @probed_appctl = true
 
-    @appctl = Appctl.detect(@root)
+    @appctl = Orbital::Environment::Appctl.detect(@root)
   end
 
   def appctl!
@@ -178,7 +178,7 @@ class Orbital::Environment::Appctl
   def self.detect(project_root)
     appctl_config_path = project_root / '.appctlconfig'
     if appctl_config_path.file?
-      self.class.new(project_root, YAML.load(appctl_config_path.read))
+      self.new(project_root, YAML.load(appctl_config_path.read))
     else
       nil
     end
@@ -228,7 +228,7 @@ class Orbital::Environment::Appctl
     return @deployment_repo if @deployment_repo
 
     repo_uri = URI(@config.deployment_repo_url)
-    clone_uri = "git@#{deployment_repo_uri.hostname}:#{deployment_repo_uri.path[1..-1]}.git"
+    clone_uri = "git@#{repo_uri.hostname}:#{repo_uri.path[1..-1]}.git"
 
     @deployment_repo = RecursiveOpenStruct.new({
       uri: repo_uri,

@@ -18,7 +18,7 @@ module Orbital::Commands; end
 class Orbital::Commands::Deploy < Orbital::Command
   def initialize(*opts)
     super(*opts)
-    @environment.appctl.select_deploy_environment(@options.env)
+    @environment.project.appctl.select_deploy_environment(@options.env)
   end
 
   def validate_environment!
@@ -62,8 +62,13 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
     end
 
+    @environment.validate :has_project do
+      @environment.project!
+      log :success, "project is available"
+    end
+
     @environment.validate :has_appctlconfig do
-      self.appctl!
+      @environment.project.appctl!
       log :success, "project is configured for appctl"
     end
 
@@ -74,7 +79,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     self.validate_environment!
 
     if @options.remote
-      unless @environment.appctl.deployment_worktree
+      unless @environment.project.appctl.deployment_worktree
         self.clone_deployment_repo
       end
 
@@ -87,7 +92,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         workflow: "appctl-apply"
       )
 
-      active_env = @environment.appctl.active_deploy_environment
+      active_env = @environment.project.appctl.active_deploy_environment
 
       trigger_cmd.add_inputs({
         target_env: active_env.name,
@@ -99,17 +104,17 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       fatal "workflow failed!" unless trigger_cmd.execute
     else
-      if @environment.appctl.deployment_worktree
+      if @environment.project.appctl.deployment_worktree
         log :step, "fast-forward appctl deployment repo"
 
-        Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
+        Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
           run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
 
           upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
 
           # move default branch to the end, so it ends up staying checked out
-          upstream_branches -= [deployment_repo_default_branch]
-          upstream_branches += [deployment_repo_default_branch]
+          upstream_branches -= [@environment.project.appctl.deployment_repo.default_branch]
+          upstream_branches += [@environment.project.appctl.deployment_repo.default_branch]
 
           upstream_branches.each do |branch|
             run 'git', 'checkout', '--quiet', branch
@@ -122,8 +127,8 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
-      Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
-        run 'git', 'checkout', @environment.appctl.deployment_repo.default_branch
+      Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
+        run 'git', 'checkout', @environment.project.appctl.deployment_repo.default_branch
       end
 
       log :step, ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
@@ -133,12 +138,12 @@ class Orbital::Commands::Deploy < Orbital::Command
     unless @options.wait
       log :break
       log :celebrate, [
-        Paint[@environment.application_name, :bold],
+        Paint[@environment.project.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed.\n\nPlease ",
         link_to(
-          @environment.appctl.gke_app_dashboard_uri,
+          @environment.project.appctl.gke_app_dashboard_uri,
           "visit the Google Cloud dashboard for this Kubernetes Application"
         ),
         " to ensure resources have converged."
@@ -151,7 +156,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     if self.wait_for_k8s_to_converge
       log :break
       log :celebrate, [
-        Paint[@environment.appctl.application_name, :bold],
+        Paint[@environment.project.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed."
@@ -160,12 +165,12 @@ class Orbital::Commands::Deploy < Orbital::Command
       log :break
       log :info, [
         "Kubernetes resources for ",
-        Paint[@environment.appctl.application_name, :bold],
+        Paint[@environment.project.appctl.application_name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " have been loaded into the cluster; but the cluster state did not converge. Please ",
         link_to(
-          @environment.appctl.gke_app_dashboard_uri,
+          @environment.project.appctl.gke_app_dashboard_uri,
           "visit the Google Cloud dashboard for this Kubernetes Application"
         ),
         " to determine its status."
@@ -176,9 +181,9 @@ class Orbital::Commands::Deploy < Orbital::Command
   def clone_deployment_repo
     log :step, "clone appctl deployment repo"
 
-    run 'git', 'clone', @environment.appctl.deployment_repo.clone_uri, @environment.appctl.deployment_worktree_root.to_s
+    run 'git', 'clone', @environment.project.appctl.deployment_repo.clone_uri, @environment.project.appctl.deployment_worktree_root.to_s
 
-    Dir.chdir(@environment.appctl.deployment_worktree_root.to_s) do
+    Dir.chdir(@environment.project.appctl.deployment_worktree_root.to_s) do
       run 'git', 'remote', 'rename', 'origin', 'upstream'
     end
   end
@@ -220,11 +225,9 @@ class Orbital::Commands::Deploy < Orbital::Command
   end
 
   def wait_for_k8s_to_converge
-    appctl_active_env = self.target_environments[@options.env]
-
     wait_text = [
         "Waiting for application resource '",
-        Paint[self.app_name, :bold],
+        Paint[@environment.project.appctl.application_name, :bold],
         "' in env '",
         Paint[@options.env, :bold],
         "' to match release ",
@@ -233,8 +236,8 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     poller = ConvergePoller.new(wait_text: wait_text)
     poller.tag_to_match = @options.tag
-    poller.k8s_app_name = self.app_name
-    poller.k8s_namespace = appctl_active_env['namespace']
+    poller.k8s_app_name = @environment.project.appctl.application_name
+    poller.k8s_namespace = @environment.project.appctl.active_deploy_environment.namespace
 
     poller.run
 

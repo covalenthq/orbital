@@ -44,11 +44,11 @@ class Orbital::Commands::Trigger < Orbital::Command
 
     case @options.repo
     when :app
-      @options.repo = @environment.appctl.app_repo.uri.path[1..-1]
-      @options.branch ||= @environment.appctl.app_repo.default_branch
+      @options.repo = @environment.project.appctl.app_repo.uri.path[1..-1]
+      @options.branch ||= @environment.project.appctl.app_repo.default_branch
     when :deployment
-      @options.repo = @environment.appctl.deployment_repo.uri.path[1..-1]
-      @options.branch ||= @environment.appctl.deployment_repo.default_branch
+      @options.repo = @environment.project.appctl.deployment_repo.uri.path[1..-1]
+      @options.branch ||= @environment.project.appctl.deployment_repo.default_branch
     else
       @options.branch ||= "master"
     end
@@ -57,7 +57,9 @@ class Orbital::Commands::Trigger < Orbital::Command
   end
 
   def add_inputs(hsh)
-    @options.input.update(hsh)
+    hsh.each do |k, v|
+      @options.input[k] = v
+    end
   end
 
   def execute(input: $stdin, output: $stdout)
