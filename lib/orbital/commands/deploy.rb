@@ -44,6 +44,7 @@ class Orbital::Commands::Deploy < Orbital::Command
       @environment.validate :cmd_appctl do
         exec_exist! 'appctl', appctl_install_doc
       end
+    end
 
     @environment.validate :has_project do
       @environment.project!
