@@ -274,63 +274,64 @@ class Orbital::Commands::Deploy < Orbital::Command
       run 'git', 'remote', 'rename', 'origin', 'upstream'
     end
   end
+end
 
-  class K8sConvergePoller < Orbital::Spinner::PollingSpinner
-    attr_accessor :k8s_client
-    attr_accessor :k8s_namespace
-    attr_accessor :k8s_app_name
-    attr_accessor :tag_to_match
-    attr_accessor :prev_transition_time
+class Orbital::Commands::Deploy::K8sConvergePoller < Orbital::Spinner::PollingSpinner
+  attr_accessor :k8s_client
+  attr_accessor :k8s_namespace
+  attr_accessor :k8s_app_name
+  attr_accessor :tag_to_match
+  attr_accessor :prev_transition_time
 
-    def poll
-      begin
-        @k8s_client.api('app.gke.io/v1beta1')
-        .resource('releasetracks', namespace: @k8s_namespace)
-        .get(@k8s_app_name)
-        .status
-      rescue K8s::Error::NotFound
-        nil
-      end
+  def poll
+    begin
+      @k8s_client.api('app.gke.io/v1beta1')
+      .resource('releasetracks', namespace: @k8s_namespace)
+      .get(@k8s_app_name)
+      .status
+    rescue K8s::Error::NotFound
+      nil
     end
+  end
 
-    def transition_time(resource_status)
-      begin
-        last_transition_dt_str = resource_status.conditions.last.lastTransitionTime
-        DateTime.parse(last_transition_dt_str).to_time
-      rescue => e
-        Time.at(0)
-      end
+  def transition_time(resource_status)
+    begin
+      last_transition_dt_str = resource_status.conditions.last.lastTransitionTime
+      DateTime.parse(last_transition_dt_str).to_time
+    rescue => e
+      Time.at(0)
     end
+  end
 
-    def state
-      if @result and transition_time(@result) > @prev_transition_time
-        last_cond = @result.conditions.last
-        if last_cond.type == "Completed" and last_cond.status == "True" and last_cond.reason == "ApplicationUpdated"
-          if @result.currentVersion.start_with?(@tag_to_match)
-            # updated to version we expected
-            :success
-          else
-            # updated to some other version (conflicting update?)
-            :failure
-          end
-        elsif last_cond.type == "Completed"
-          puts "intermediate transition step info:"
-          pp @result.to_h
-          :in_progress
+  def state
+    if @result and transition_time(@result) > @prev_transition_time
+      last_cond = @result.conditions.last
+
+      if last_cond.type == "Completed" and last_cond.status == "True" and last_cond.reason == "ApplicationUpdated"
+        if @result.currentVersion.start_with?(@tag_to_match)
+          # updated to version we expected
+          :success
         else
-          :in_progress
+          # updated to some other version (conflicting update?)
+          :failure
         end
-      elsif Time.now - @started_at >= 120.0
-        :timeout
-      elsif @poll_attempts > 0
+      elsif last_cond.type == "Completed"
+        puts "intermediate transition step info:"
+        pp @result.to_h
         :in_progress
       else
-        :queued
+        :in_progress
       end
+    elsif Time.now - @started_at >= 120.0
+      :timeout
+    elsif @poll_attempts > 0
+      :in_progress
+    else
+      :queued
     end
+  end
 
-    def resolved?
-      not([:in_progress, :queued].include?(self.state))
-    end
+  def resolved?
+    not([:in_progress, :queued].include?(self.state))
   end
 end
