@@ -23,6 +23,8 @@ class Orbital::Converger < Rake::Application
   def initialize(command)
     super()
 
+    @command = command
+
     @paths = OpenStruct.new
 
     @paths.homedir = Pathname.new(ENV['HOME'])

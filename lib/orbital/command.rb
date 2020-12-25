@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'paint'
+require 'thor'
 require 'orbital/errors'
 require 'orbital/core_ext/to_flat_string'
 require 'recursive-open-struct'
@@ -31,6 +32,10 @@ module Orbital
 
     def fatal(*args)
       raise Orbital::CommandValidationError.new(*args)
+    end
+
+    def usage(*args)
+      raise Orbital::CommandUsageError.new(*args)
     end
 
     LOG_STYLES = {

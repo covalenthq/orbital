@@ -3,6 +3,8 @@ require 'pathname'
 # require 'uri'
 require 'set'
 
+require 'tty-platform'
+
 require 'orbital/errors'
 # require_relative 'errors'
 
@@ -29,12 +31,15 @@ class Orbital::Environment
       @project.environment = self
     end
 
+    @platform = TTY::Platform.new
+
     @validations_done = Set.new
   end
 
   attr_reader :sdk
   attr_reader :project
   attr_reader :shell
+  attr_reader :platform
 
   def project!
     unless @project
@@ -126,7 +131,7 @@ class Orbital::Environment::SDK
 
     @state_dir =
       if prefix = self.install_prefix
-        prefix / 'var'
+        prefix / 'var' / 'lib' / 'orbital'
       else
         @root / 'var'
       end

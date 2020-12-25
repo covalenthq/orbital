@@ -9,4 +9,6 @@ module Orbital
 
     attr_reader :additional_info
   end
+
+  class CommandUsageError < Error; end
 end
