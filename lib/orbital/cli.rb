@@ -4,7 +4,6 @@ require 'thor'
 require 'orbital/core_ext/to_flat_string'
 require 'orbital/environment'
 
-<<<<<<< HEAD
 module Orbital; end
 class Orbital::CLI < Thor; end
 class Orbital::CLI::Subcommand < Thor; end

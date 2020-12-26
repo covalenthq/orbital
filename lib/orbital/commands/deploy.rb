@@ -14,8 +14,10 @@ require 'k8s-ruby'
 require 'paint'
 
 require 'orbital/command'
+require 'orbital/kustomize'
 require 'orbital/spinner/polling_spinner'
 require 'orbital/core_ext/to_flat_string'
+require 'orbital/core_ext/pathname_modify_as_yaml'
 
 module Orbital; end
 module Orbital::Commands; end
@@ -52,18 +54,27 @@ class Orbital::Commands::Deploy < Orbital::Command
     if @options.deployer == :internal
       @environment.validate :cmd_kustomize do
         if exec_exist? 'kustomize'
-          @kustomize_command = ['kustomize']
+          @kustomizer = lambda do |path|
+            run('kustomize', 'build', path.to_s, capturing_output: true)
+          end
+
           log :success, ["have ", Paint["kustomize(1)", :bold]]
         elsif exec_exist? 'kubectl'
-          @kustomize_command = ['kubectl', 'kustomize']
+          @kustomizer = lambda do |path|
+            run('kubectl', 'kustomize', 'build', path.to_s, capturing_output: true)
+          end
+
           log :success, ["have ", Paint["kubectl(1)", :bold]]
-        else
-          fatal [
-            "Neither ", Paint["kustomize(1)", :bold],
-            " nor ", Paint["kubectl(1)", :bold],
-            " is available. Please install one.\n\n",
-            Paint["kubectl(1)", :bold], " comes with Docker; while ",
-            Paint["kustomize(1)", :bold], " is available standalone, or as part of the Google Cloud SDK."
+        elsif
+          @kustomizer = lambda do |path|
+            k = Orbital::Kustomize::KustomizationFile.load(path)
+            k.render_stream
+          end
+
+          log :info, [
+            "using internal pure-Ruby ",
+            Paint["kustomize", :bold],
+            "; some functionality may not be fully supported."
           ]
         end
       end
@@ -112,6 +123,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     active_env = @environment.project.appctl.active_deploy_environment
     k8s_releasetrack_prev_transition_time = Time.at(0)
+    deploy_start_time = Time.now
 
     if @options.wait
       self.k8s_client
@@ -141,11 +153,160 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     case @options.deployer
     when :internal
-      self.ensure_up_to_date_deployment_repo
-
       self.k8s_client
 
-      log :step, ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+      dr_log_branch = @environment.project.appctl.deployment_repo.default_branch
+      dr_env_branch = @options.env
+
+      ar_checked_out_ref = run(
+        'git', 'rev-parse', 'HEAD',
+        capturing_output: true
+      ).strip
+
+      ar_checked_out_ref_symbolic = run(
+        'git', 'rev-parse', '--abbrev-ref', 'HEAD',
+        capturing_output: true
+      ).strip
+
+      ar_release_tag_ref = run(
+        'git', 'rev-parse', "refs/tags/#{@options.tag}",
+        capturing_output: true
+      ).strip
+
+      ar_return_to_ref = nil
+      unless ar_checked_out_ref == ar_release_tag_ref
+        ar_return_to_ref =
+          if ar_checked_out_ref_symbolic == 'HEAD'
+            ar_checked_out_ref
+          else
+            ar_checked_out_ref_symbolic
+          end
+
+        log :step, ["check out release tag '", @options.tag, "'"]
+        run('git', 'checkout', '--quiet', ar_release_tag_ref)
+      end
+
+      log :step, ["build k8s resources for env '", Paint[@options.env, :bold], "'"]
+      kustomization_target_dir = @environment.project.appctl.k8s_resources / 'envs' / @options.env
+      unless kustomization_target_dir.directory?
+        kustomization_target_dir = @environment.project.appctl.k8s_resources / 'base'
+      end
+      unless kustomization_target_dir.directory?
+        fatal [Paint[kustomization_target_dir.to_s, :bold], " does not exist"]
+      end
+
+      hydrated_config = @kustomizer.call(kustomization_target_dir)
+      log :success, ["built ", Paint["artifact.yaml", :bold], " (", hydrated_config.length.to_s, " bytes)"]
+
+      unless @environment.project.appctl.deployment_worktree
+        self.clone_deployment_repo
+        return
+      end
+
+      log :step, "sync deployment repo"
+      run(
+        'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags',
+        chdir: @environment.project.appctl.deployment_worktree_root.to_s
+      )
+
+      log :step, "commit built k8s resources to deployment repo"
+
+      dr_checked_out_branch = run(
+        'git', 'rev-parse', '--abbrev-ref', 'HEAD',
+        chdir: @environment.project.appctl.deployment_worktree.to_s,
+        capturing_output: true
+      ).strip
+
+      unless dr_checked_out_branch == dr_env_branch
+        run(
+          'git', 'checkout', '--quiet', dr_env_branch,
+          chdir: @environment.project.appctl.deployment_worktree.to_s
+        )
+      end
+
+      run(
+        'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      artifact_path = @environment.project.appctl.deployment_worktree / 'artifact.yaml'
+
+      unless artifact_path.read == hydrated_config
+        artifact_path.open('w'){ |f| f.write(hydrated_config) }
+        run(
+          'git', 'add', artifact_path.to_s,
+          chdir: @environment.project.appctl.deployment_worktree.to_s
+        )
+
+        run(
+          'git', 'commit', '-m', 'orbital: generate hydrated kubernetes configuration manifest',
+          chdir: @environment.project.appctl.deployment_worktree.to_s
+        )
+      end
+
+      dr_env_tag_base_name = "#{@options.tag}-#{@options.env}-#{ar_release_tag_ref[0, 7]}"
+
+      dr_env_tag_refs = run(
+        'git', 'tag', '--list',
+        chdir: @environment.project.appctl.deployment_worktree.to_s,
+        capturing_output: true
+      )
+
+      dr_env_tags_max_suffix_seq =
+        dr_env_tag_refs.chomp.split("\n")
+        .filter{ |ln| ln.start_with?(dr_env_tag_base_name) }
+        .map{ |ln| ln.split('.').last.to_i }
+        .max
+
+      dr_env_tag_suffix_seq =
+        dr_env_tags_max_suffix_seq ? (dr_env_tags_max_suffix_seq + 1) : 0
+
+      dr_env_tag = "#{dr_env_tag_base_name}.#{dr_env_tag_suffix_seq}"
+
+      run(
+        'git', 'tag', dr_env_tag,
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      run(
+        'git', 'checkout', '--quiet', dr_log_branch,
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      run(
+        'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      envs_path = @environment.project.appctl.deployment_worktree / 'environments.yaml'
+      envs_path.modify_as_yaml do |docs|
+        active_env = docs[0]['envs'].find{ |env| env['name'] == @options.env }
+        active_env['last_update_time'] = deploy_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        docs
+      end
+      run(
+        'git', 'add', envs_path.to_s,
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      run(
+        'git', 'commit', '-m', "orbital: update environment data for #{@options.env}",
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      log :step, "push deployment-repo commits and tags to upstream"
+      run(
+        'git', 'push', 'upstream',
+        "refs/heads/#{dr_log_branch}",
+        "refs/heads/#{@options.env}",
+        "refs/tags/#{dr_env_tag}",
+        chdir: @environment.project.appctl.deployment_worktree.to_s
+      )
+
+      if ar_return_to_ref
+        log :step, ["clean up"]
+        run('git', 'checkout', '--quiet', ar_return_to_ref)
+      end
 
       # TODO:
       #   - in app repo:
@@ -170,6 +331,8 @@ class Orbital::Commands::Deploy < Orbital::Command
       # - create git-token secret in namespace (github token w/ read permission on deployment repo)
       # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
       # - if we switched kubectl contexts at the beginning, switch back
+
+      return
 
     when :appctl
       self.ensure_up_to_date_deployment_repo
