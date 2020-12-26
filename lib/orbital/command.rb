@@ -69,12 +69,22 @@ module Orbital
     def run(*cmdline, **kwargs)
       log :spawn, cmdline.join(' ')
 
-      Kernel.system(*cmdline, **kwargs)
+      capturing_output = kwargs.delete(:capturing_output)
+      fail_ok = kwargs.delete(:fail_ok)
 
-      unless $?.success?
+      result =
+        if capturing_output
+          IO.popen(cmdline, **kwargs) { |f| f.read }
+        else
+          Kernel.system(*cmdline, **kwargs)
+        end
+
+      unless fail_ok || $?.success?
         cmd_posix = Paint["#{cmdline[0]}(1)", :bold]
         fatal ["Nonzero exit status from ", cmd_posix]
       end
+
+      result
     end
 
     # The cursor movement
