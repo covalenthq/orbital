@@ -23,7 +23,9 @@ class Orbital::Commands::Deploy < Orbital::Command
   def initialize(*opts)
     super(*opts)
     @options.deployer = @options.deployer.intern
-    @environment.project.appctl.select_deploy_environment(@options.env)
+    if @environment.project and @environment.project.appctl
+      @environment.project.appctl.select_deploy_environment(@options.env)
+    end
   end
 
   def validate_environment!
