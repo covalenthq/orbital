@@ -4,6 +4,7 @@ require 'thor'
 require 'orbital/core_ext/to_flat_string'
 require 'orbital/environment'
 
+<<<<<<< HEAD
 module Orbital; end
 class Orbital::CLI < Thor; end
 class Orbital::CLI::Subcommand < Thor; end
@@ -12,6 +13,8 @@ class Orbital::CLI::LocalSetupSubcommand < Orbital::CLI::Subcommand; end
 class Orbital::CLI::ClusterSetupSubcommand < Orbital::CLI::Subcommand; end
 
 class Orbital::CLI
+  # class_option :help, aliases: '-h', type: :boolean, hide: true
+
   class_option :workdir, hide: true, required: true
   class_option :sdkroot, hide: true, required: true
   class_option :shellenv, hide: true, required: true
@@ -37,12 +40,14 @@ class Orbital::CLI
   method_option :input, aliases: '-i', type: :array,
                         desc: "Set a workflow input (format KEY=VALUE)"
   def trigger(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/commands/trigger'
     Orbital::Commands::Trigger.new(options).execute
   end
 
   desc 'update', 'Update the Orbital SDK'
   def update(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/commands/update'
     Orbital::Commands::Update.new(options).execute
   end
@@ -62,6 +67,7 @@ class Orbital::CLI
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
   def release(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/commands/release'
     Orbital::Commands::Release.new(options).execute
   end
@@ -77,6 +83,7 @@ class Orbital::CLI
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
   def deploy(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require_relative 'commands/deploy'
     Orbital::Commands::Deploy.new(options).execute
   end
@@ -111,18 +118,21 @@ class Orbital::CLI::LocalSetupSubcommand
 
   desc 'ca-cert', 'Create and install a local trusted Certificate Authority'
   def ca_cert(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/setup_tasks/local/ca_cert'
     Orbital::SetupTasks::Local::InstallCACert.new(options).execute_tree
   end
 
   desc 'dns-proxy', 'Install a proxy forwarding to an in-cluster DNS resolver'
   def dns_proxy(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/setup_tasks/local/dns_proxy'
     Orbital::SetupTasks::Local::InstallDNSProxy.new(options).execute_tree
   end
 
   desc 'helm-repos', 'Register and sync required Helm repositories'
   def helm_repos(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/setup_tasks/local/helm_repos'
     Orbital::SetupTasks::Local::SyncHelmRepos.new(options).execute_tree
   end
@@ -133,12 +143,14 @@ class Orbital::CLI::ClusterSetupSubcommand
 
   desc 'namespaces', 'Register core k8s namespaces'
   def namespaces(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/setup_tasks/cluster/namespaces'
     Orbital::SetupTasks::Cluster::CreateNamespaces.new(options).execute_tree
   end
 
   desc 'ingress-controller', 'Install Nginx + cert issuers into the cluster'
   def ingress_controller(*)
+    return invoke(:help, [:trigger]) if options[:help]
     require 'orbital/setup_tasks/cluster/ingress_controller'
     Orbital::SetupTasks::Cluster::InstallIngressController.new(options).execute_tree
   end
