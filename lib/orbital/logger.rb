@@ -8,14 +8,15 @@ class Orbital::Logger
     @sink = sink
     @last_header_buffer = nil
     @prev_step_emitted = false
+    @using_cli = nil
+  end
+
+  def with_cli(cli)
+    @using_cli = cli
   end
 
   def fatal(*args)
     raise Orbital::CommandValidationError.new(*args)
-  end
-
-  def usage(*args)
-    raise Orbital::CommandUsageError.new(*args)
   end
 
   def step(ansi_desc)
@@ -43,16 +44,16 @@ class Orbital::Logger
 
   def log_exception(e)
     case e
-    when Orbital::CommandValidationError
+    when Orbital::Error
       self.break(1)
-      self.emit( self.styled(:e_stop, err.message) )
-    when Orbital::CommandUsageError
-      $stderr.puts "TODO: emit usage"
-    end
+      self.emit( self.styled(:fatal, e.message) )
 
-    if e.respond_to?(:additional_info) and e_info = e.additional_info
-      self.break(1)
-      self.emit( self.styled(:info, e_info) )
+      if e_info = e.additional_info
+        self.break(1)
+        self.emit( self.styled(:info, e_info) )
+      end
+    else
+      self.emit( e.message )
     end
   end
 
@@ -74,6 +75,16 @@ class Orbital::Logger
   def styled(style, msg_body)
     builder = Orbital::Logger::MessageBuilder.new
     self.send(:"style_#{style}", builder, msg_body)
+  end
+
+  def style_fatal(builder, msg_body)
+    builder
+    .text("🛑 ")
+    .sgr{ |sgr| sgr.on(:bold) }
+    .text(msg_body)
+    .sgr{ |sgr| sgr.reset }
+    .text("\n")
+    .to_ansi
   end
 
   def style_spawn(builder, msg_body)

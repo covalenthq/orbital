@@ -8,23 +8,20 @@ require 'orbital'
 
 module Orbital
   class Command
-    def initialize(options, ctx = nil)
+    def initialize(cli, options, ctx = nil)
       options = options.dup
 
       @context = ctx || Orbital::Context.lookup(options.delete(:contextuuid))
+      @cli = cli
 
       @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
     end
 
     def sibling_command(command_klass, **options)
-      command_klass.new(options, @context)
+      command_klass.new(@cli, options, @context)
     end
 
     attr_accessor :options
-
-    def usage(*args)
-      @context.logger.usage(*args)
-    end
 
     def logger
       @context.logger
