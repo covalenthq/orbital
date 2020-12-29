@@ -6,7 +6,7 @@ module Orbital; end
 module Orbital::SetupTasks; end
 module Orbital::SetupTasks::Cluster; end
 class Orbital::SetupTasks::Cluster::CreateNamespaces < Orbital::SetupTask
-  dependent_on :cluster
+  dependent_on :cluster_access
 
   CORE_NAMESPACES = [
     'infrastructure',
@@ -31,11 +31,11 @@ class Orbital::SetupTasks::Cluster::CreateNamespaces < Orbital::SetupTask
 
     return if namespaces_to_create.empty?
 
-    log :step, "creating namespaces in cluster"
+    logger.step "creating namespaces in cluster"
 
     namespaces_to_create.each do |ns_resource|
       self.cluster_namespaces.create_resource(ns_resource)
-      log :success, ["create namespace '", Paint[ns_resource.metadata.name, :bold], "'"]
+      logger.success ["create namespace '", Paint[ns_resource.metadata.name, :bold], "'"]
     end
   end
 end

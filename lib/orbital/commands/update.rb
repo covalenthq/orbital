@@ -9,31 +9,31 @@ module Orbital::Commands; end
 class Orbital::Commands::Update < Orbital::Command
   def validate_environment!
     return if @validated_environment
-    log :step, "ensure shell environment is sane for update"
+    logger.step "ensure shell environment is sane for update"
 
-    @environment.validate :sdk_is_git_worktree do
-      unless @environment.sdk.git_worktree?
-        fatal "Orbital SDK project root is not a git worktree!"
+    @context.validate :sdk_is_git_worktree do
+      unless @context.sdk.git_worktree?
+        logger.fatal "Orbital SDK project root is not a git worktree!"
       end
     end
 
-    @environment.validate :sdk_worktree_clean do
-      if @environment.sdk.worktree_clean?
-        log :success, "Orbital SDK worktree is clean"
+    @context.validate :sdk_worktree_clean do
+      if @context.sdk.worktree_clean?
+        logger.success "Orbital SDK worktree is clean"
       else
-        fatal "Orbital SDK worktree is dirty"
+        logger.fatal "Orbital SDK worktree is dirty"
       end
     end
 
-    @environment.validate :git_worktree_is_on_master_branch do
-      Dir.chdir(@environment.sdk.root.to_s) do
+    @context.validate :git_worktree_is_on_master_branch do
+      Dir.chdir(@context.sdk.root.to_s) do
         on_branch = `git branch --show-current`.strip
 
         unless on_branch == 'master'
-          fatal "Orbital SDK worktree is not on master branch"
+          logger.fatal "Orbital SDK worktree is not on master branch"
         end
       end
-      log :success, "Orbital SDK worktree is on master branch"
+      logger.success "Orbital SDK worktree is on master branch"
     end
 
     @validated_environment = true
@@ -42,8 +42,8 @@ class Orbital::Commands::Update < Orbital::Command
   def execute(input: $stdin, output: $stdout)
     self.validate_environment!
 
-    log :step, "Updating Orbital SDK worktree"
-    Dir.chdir(@environment.sdk.root.to_s) do
+    logger.step "Updating Orbital SDK worktree"
+    Dir.chdir(@context.sdk.root.to_s) do
       system('git', 'fetch', 'origin')
       system('git', 'reset', '--hard', 'origin/master')
     end

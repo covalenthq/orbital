@@ -10,7 +10,7 @@ module Orbital; end
 module Orbital::SetupTasks; end
 module Orbital::SetupTasks::Cluster; end
 class Orbital::SetupTasks::Cluster::InstallIngressController < Orbital::SetupTask
-  dependent_on :cluster
+  dependent_on :cluster_access
 
   dependent_on Orbital::SetupTasks::Local::SyncHelmRepos
   dependent_on Orbital::SetupTasks::Cluster::CreateNamespaces

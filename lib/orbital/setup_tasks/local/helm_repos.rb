@@ -9,7 +9,7 @@ class Orbital::SetupTasks::Local::SyncHelmRepos < Orbital::SetupTask
   dependent_on :helm
 
   def execute(*)
-    log :step, "registering and syncing Helm chart repositories"
+    logger.step "registering and syncing Helm chart repositories"
 
     self.helm_client.register_repos({
       'stable' => 'https://charts.helm.sh/stable',

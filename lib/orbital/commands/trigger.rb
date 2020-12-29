@@ -39,21 +39,21 @@ class Orbital::Commands::Trigger < Orbital::Command
     when /^(\w+)\/(\w+)$/
       # leave as-is
     else
-      fatal "invalid value for flag --repo"
+      logger.fatal "invalid value for flag --repo"
     end
 
     case @options.repo
     when :app
-      @options.repo = @environment.project.appctl.app_repo.uri.path[1..-1]
-      @options.branch ||= @environment.project.appctl.app_repo.default_branch
+      @options.repo = @context.project.appctl.app_repo.uri.path[1..-1]
+      @options.branch ||= @context.project.appctl.app_repo.default_branch
     when :deployment
-      @options.repo = @environment.project.appctl.deployment_repo.uri.path[1..-1]
-      @options.branch ||= @environment.project.appctl.deployment_repo.default_branch
+      @options.repo = @context.project.appctl.deployment_repo.uri.path[1..-1]
+      @options.branch ||= @context.project.appctl.deployment_repo.default_branch
     else
       @options.branch ||= "master"
     end
 
-    @github = Orbital::Github::Client.new(@environment.project.root)
+    @github = Orbital::Github::Client.new(@context.project.root)
   end
 
   def add_inputs(hsh)
@@ -68,7 +68,7 @@ class Orbital::Commands::Trigger < Orbital::Command
       @options.workflow
     )
 
-    log :success, "get ID of last workflow-run"
+    logger.success "get ID of last workflow-run"
 
     @github.create_workflow_dispatch(
       @options.repo,
@@ -77,7 +77,7 @@ class Orbital::Commands::Trigger < Orbital::Command
       @options.input.to_h.map{ |k, v| [k.to_s, v.to_s] }.to_h
     )
 
-    log :success, ["send ", Paint["workflow_dispatch", :italic], " event"]
+    logger.success ["send ", Paint["workflow_dispatch", :italic], " event"]
 
     newest_workflow_run_id_after =
       Orbital::Spinner::SimplePollingSpinner.new(
@@ -93,7 +93,7 @@ class Orbital::Commands::Trigger < Orbital::Command
         }
       ).run.result
 
-    log :step, "monitor workflow progress"
+    logger.step "monitor workflow progress"
 
     workflow_poller =
       self.monitor_workflow_progress(newest_workflow_run_id_after)
@@ -102,7 +102,7 @@ class Orbital::Commands::Trigger < Orbital::Command
       job_id = workflow_poller.result['id']
 
       log :break
-      log :info, [
+      logger.info [
         "Please ",
         link_to(
           "https://github.com/#{@options.repo}/runs/#{job_id}?check_suite_focus=true",

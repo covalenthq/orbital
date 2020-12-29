@@ -45,28 +45,20 @@ $:.unshift(lib_dir.to_s) unless $:.include?(lib_dir.to_s)
 
 require 'orbital/cli'
 
+ctx = Orbital::Context.create(
+  wd: Dir.pwd,
+  sdk_root: sdk_root,
+  shell_env: ENV
+)
+
 Signal.trap('INT') do
   warn("\n#{caller.join("\n")}: interrupted")
   exit(1)
 end
 
-require 'json'
-
-environment_config_flags = [
-  '--workdir', Dir.pwd,
-  '--sdkroot', sdk_root.to_s,
-  '--shellenv', ENV.to_h.to_json
-]
-
 begin
-  Orbital::CLI.start(ARGV + environment_config_flags)
+  Orbital::CLI.start(ARGV + ['--contextuuid', ctx.uuid.to_s])
 rescue Orbital::CommandValidationError => err
-  $stderr.puts(["\n🛑 " + err.message].to_flat_string)
-
-  if err.additional_info
-    $stderr.write("\n")
-    $stderr.puts(err.additional_info.to_flat_string)
-  end
-
+  ctx.logger.log_exception(err)
   Kernel.exit(1)
 end

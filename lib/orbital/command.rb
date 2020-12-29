@@ -2,58 +2,32 @@
 
 require 'paint'
 require 'thor'
-require 'orbital/errors'
-require 'orbital/core_ext/to_flat_string'
 require 'recursive-open-struct'
+
+require 'orbital'
 
 module Orbital
   class Command
-    def initialize(options, env = nil)
+    def initialize(options, ctx = nil)
       options = options.dup
 
-      @environment = env || Orbital::Environment.new(
-        wd: Pathname.new(options.delete(:workdir)),
-        sdk_root: Pathname.new(options.delete(:sdkroot)),
-        shell_env: JSON.parse(options.delete(:shellenv))
-      )
+      @context = ctx || Orbital::Context.lookup(options.delete(:contextuuid))
 
       @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
     end
 
     def sibling_command(command_klass, **options)
-      command_klass.new(options, @environment)
+      command_klass.new(options, @context)
     end
 
     attr_accessor :options
 
-    def project_root
-      @environment.project!.root
-    end
-
-    def fatal(*args)
-      raise Orbital::CommandValidationError.new(*args)
-    end
-
     def usage(*args)
-      raise Orbital::CommandUsageError.new(*args)
+      @context.logger.usage(*args)
     end
 
-    LOG_STYLES = {
-      spawn: lambda{ |text| [Paint["$ ", :blue, :bold], Paint[text.to_flat_string, :blue]] },
-      celebrate: lambda{ |text| ["🎉 ", Paint[text.to_flat_string, :bold]] },
-      cry: lambda{ |text| ["😱 ", Paint[text, :bold, :red]] },
-      step: lambda{ |text| ["\n", Paint["### ", :bold], Paint[text.to_flat_string, :bold]] },
-      success: lambda{ |text| [Paint["✓", :green], " ", text] },
-      failure: lambda{ |text| [Paint["✗", :red], " ", text] },
-      warning: lambda{ |text| ["⚠️ ", Paint[text.to_flat_string, :yellow]] },
-      info: lambda{ |text| [Paint["i ", :blue, :bold], text] },
-      break: lambda{ |count| count ||= 1; "\n" * count }
-    }
-
-    def log(style, text = nil)
-      formatter = LOG_STYLES[style]
-      ansi = formatter.call(text)
-      $stderr.puts(ansi.to_flat_string)
+    def logger
+      @context.logger
     end
 
     # Execute this command
@@ -67,7 +41,7 @@ module Orbital
     end
 
     def run(*cmdline, **kwargs)
-      log :spawn, cmdline.join(' ')
+      logger.spawn cmdline.join(' ')
 
       capturing_output = kwargs.delete(:capturing_output)
       fail_ok = kwargs.delete(:fail_ok)
@@ -81,7 +55,7 @@ module Orbital
 
       unless fail_ok || $?.success?
         cmd_posix = Paint["#{cmdline[0]}(1)", :bold]
-        fatal ["Nonzero exit status from ", cmd_posix]
+        logger.fatal ["Nonzero exit status from ", cmd_posix]
       end
 
       result
@@ -186,9 +160,9 @@ module Orbital
       cmd_posix_ref = Paint["#{cmd_name}(1)", :bold]
 
       if self.exec_exist?(cmd_name)
-        log :success, "have #{cmd_posix_ref}"
+        logger.success "have #{cmd_posix_ref}"
       else
-        fatal "#{cmd_posix_ref} is required. Please #{install_doc.to_flat_string}"
+        logger.fatal "#{cmd_posix_ref} is required. Please #{install_doc.to_flat_string}"
       end
     end
   end

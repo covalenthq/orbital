@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
 require 'thor'
-require 'orbital/core_ext/to_flat_string'
-require 'orbital/environment'
 
-module Orbital; end
+require 'orbital'
+
 class Orbital::CLI < Thor; end
 class Orbital::CLI::Subcommand < Thor; end
 class Orbital::CLI::SetupSubcommand < Orbital::CLI::Subcommand; end
@@ -14,9 +13,7 @@ class Orbital::CLI::ClusterSetupSubcommand < Orbital::CLI::Subcommand; end
 class Orbital::CLI
   # class_option :help, aliases: '-h', type: :boolean, hide: true
 
-  class_option :workdir, hide: true, required: true
-  class_option :sdkroot, hide: true, required: true
-  class_option :shellenv, hide: true, required: true
+  class_option :contextuuid, type: :string, required: true, hide: true
 
   def self.exit_on_failure?
     true
