@@ -412,7 +412,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
 
     unless @options.wait
-      log :break
+      logger.break(2)
       logger.celebrate [
         Paint[@context.project.appctl.application_name, :bold],
         " release ",
@@ -432,7 +432,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     self.k8s_client
 
-    logger.step "wait for k8s to converge"
+    logger.step "wait for k8s to converge", flush: true
 
     wait_text = [
         "Waiting for application resource '",
@@ -454,7 +454,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     case poller.state
     when :success
-      log :break
+      logger.break(2)
       logger.celebrate [
         Paint[@context.project.appctl.application_name, :bold],
         " release ",
@@ -464,7 +464,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     when :timeout
       logger.warning "No activity after 120s; giving up!"
 
-      log :break
+      logger.break(2)
       logger.info [
         "Kubernetes resources for ",
         Paint[@context.project.appctl.application_name, :bold],
@@ -476,13 +476,13 @@ class Orbital::Commands::Deploy < Orbital::Command
       ]
     when :failure
       logger.info "Last poll result:"
-      log :break
+      logger.break(1)
       pp poller.result.to_h
-
+      logger.break(2)
       logger.error "Deploy failed!"
     end
 
-    log :break
+    logger.break(2)
     logger.info [
       "You can ",
       link_to(

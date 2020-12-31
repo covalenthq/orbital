@@ -19,8 +19,9 @@ class Orbital::Logger
     raise Orbital::CommandValidationError.new(*args)
   end
 
-  def step(ansi_desc)
+  def step(ansi_desc, flush: false)
     @last_header_buffer = ansi_desc
+    flush_header_buffer! if flush
   end
 
   def break(num_lines = 1)
@@ -28,17 +29,7 @@ class Orbital::Logger
   end
 
   def log(style, ansi_text)
-    if @last_header_buffer
-      if @prev_step_emitted
-        self.break(1)
-      else
-        @prev_step_emitted = true
-      end
-
-      self.emit( self.styled(:step, @last_header_buffer) )
-      @last_header_buffer = nil
-    end
-
+    flush_header_buffer!
     self.emit( self.styled(style, ansi_text) )
   end
 
@@ -67,6 +58,19 @@ class Orbital::Logger
 
   private
 
+  def flush_header_buffer!
+    if @last_header_buffer
+      if @prev_step_emitted
+        self.break(1)
+      else
+        @prev_step_emitted = true
+      end
+
+      self.emit( self.styled(:step, @last_header_buffer) )
+      @last_header_buffer = nil
+    end
+  end
+
   def emit(ansi_text)
     @sink.write(ansi_text.to_flat_string)
     @sink.flush
@@ -92,6 +96,15 @@ class Orbital::Logger
     .sgr{ |sgr| sgr.fg(:blue).on(:bold) }
     .text("$ ")
     .sgr{ |sgr| sgr.off(:bold) }
+    .text(msg_body)
+    .sgr{ |sgr| sgr.reset }
+    .text("\n")
+    .to_ansi
+  end
+
+  def style_celebrate(builder, msg_body)
+    builder
+    .text("🎉 ")
     .text(msg_body)
     .sgr{ |sgr| sgr.reset }
     .text("\n")

@@ -97,8 +97,8 @@ class Orbital::EscapeSequenceBuilder::SGRBuilder
   }
 
   EFFECT_DISABLE_CODES = {
-    bright: 21,
-    bold: 21,
+    bright: 22,
+    bold: 22,
     faint: 22,
     italic: 23,
     underline: 24,
