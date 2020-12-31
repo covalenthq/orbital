@@ -86,8 +86,8 @@ class Orbital::Context::Appctl
     end.to_h
   end
 
-  def select_deploy_environment(name:)
-    @active_deploy_environment_name = name.to_s.intern
+  def select_deploy_environment(env_name)
+    @active_deploy_environment_name = env_name.to_s.intern
   end
 
   def active_deploy_environment
