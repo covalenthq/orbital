@@ -1,0 +1,48 @@
+{
+	"folders":
+	[
+		{
+			"path": "exe"
+		},
+
+		{
+			"path": "lib"
+		},
+
+		{
+			"path": "share"
+		},
+
+		{
+			"path": ".",
+			"name": "errata",
+			"folder_exclude_patterns": [
+				".sublime",
+				"exe",
+				"lib",
+				"spec",
+				".bundle",
+				"share",
+				"var",
+				"vendor",
+				".git"
+			],
+
+			"file_exclude_patterns": [
+				"*.sublime-project",
+				"*.sublime-workspace",
+				".git",
+				"Gemfile.lock"
+			]
+		}
+	],
+
+
+	"settings": {
+		"tab_size": 2,
+		"translate_tabs_to_spaces": true,
+		"default_line_ending": "unix",
+		"ensure_newline_at_eof_on_save": true,
+		"trim_trailing_white_space_on_save": true
+	}
+}
