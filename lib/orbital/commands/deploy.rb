@@ -211,7 +211,6 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       unless @context.project.appctl.deployment_worktree
         self.clone_deployment_repo
-        return
       end
 
       logger.step "sync deployment repo"
