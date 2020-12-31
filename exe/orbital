@@ -43,7 +43,7 @@ require 'bundler/setup'
 
 $:.unshift(lib_dir.to_s) unless $:.include?(lib_dir.to_s)
 
-require 'orbital/cli'
+require 'orbital/context'
 
 ctx = Orbital::Context.create(
   wd: Dir.pwd,
@@ -57,6 +57,7 @@ Signal.trap('INT') do
 end
 
 begin
+  require 'orbital/cli'
   Orbital::CLI.start(ARGV + ['--contextuuid', ctx.uuid.to_s])
 rescue Orbital::CommandValidationError => err
   ctx.logger.log_exception(err)

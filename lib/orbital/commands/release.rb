@@ -62,7 +62,7 @@ class Orbital::Commands::Release < Orbital::Command
     deploy_cmd = nil
 
     if @options.deploy
-      require_relative 'deploy'
+      require 'orbital/commands/deploy'
 
       deploy_cmd_opts = @options.dup.to_h.merge({
         env: "staging",

@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require 'paint'
-require 'thor'
 require 'recursive-open-struct'
 
 require 'orbital'
+require 'orbital/context'
 
 module Orbital
   class Command

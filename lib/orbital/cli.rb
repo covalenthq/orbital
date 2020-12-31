@@ -47,7 +47,7 @@ class Orbital::CLI < Orbital::CommandRouter
 
   desc 'version', 'Print the Orbital SDK version'
   def version
-    require_relative 'version'
+    require 'orbital/version'
     puts "v#{Orbital::VERSION}"
   end
   map %w(--version -v) => :version
@@ -106,7 +106,7 @@ class Orbital::CLI < Orbital::CommandRouter
                        desc: "Wait for k8s state to converge."
   def deploy(*)
     return invoke(:help, [:trigger]) if options[:help]
-    require_relative 'commands/deploy'
+    require 'orbital/commands/deploy'
     Orbital::Commands::Deploy.new(self, options).execute
   end
 end

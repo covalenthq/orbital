@@ -1,7 +1,7 @@
 require 'orbital/errors'
 require 'orbital/escape_sequence_builder'
 
-require 'orbital/core_ext/to_flat_string'
+require 'orbital/ext/core/to_flat_string'
 
 class Orbital::Logger
   def initialize(sink: $stderr)

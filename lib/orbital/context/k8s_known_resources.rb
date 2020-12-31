@@ -1,3 +1,5 @@
+require 'k8s-ruby'
+
 module Orbital; end
 class Orbital::Context; end
 

@@ -1,7 +1,7 @@
 require 'paint'
 
 require 'orbital/spinner/animation'
-require 'orbital/core_ext/to_flat_string'
+require 'orbital/ext/core/to_flat_string'
 
 module Orbital; end
 class Orbital::Spinner

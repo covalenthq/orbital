@@ -1,22 +1,18 @@
-require 'rake'
 
 require 'pathname'
 require 'securerandom'
-require 'k8s-ruby'
-require 'tty-prompt'
 require 'ostruct'
+require 'rake'
+
+require 'tty-prompt'
+require 'k8s-ruby'
+require 'orbital/ext/k8s-ruby/has_resource'
 
 require 'orbital/converger/helm'
 require 'orbital/converger/kubectl'
 require 'orbital/converger/kube_resource_manager'
 require 'orbital/converger/mkcert'
 require 'orbital/converger/gcloud'
-
-class K8s::ResourceClient
-  def has_resource?(resource_name)
-    self.list(fieldSelector: "metadata.name=#{resource_name}").length > 0
-  end
-end
 
 module Orbital; end
 class Orbital::Converger < Rake::Application

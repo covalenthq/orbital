@@ -1,5 +1,5 @@
 require 'orbital/spinner'
-require 'orbital/core_ext/to_flat_string'
+require 'orbital/ext/core/to_flat_string'
 
 module Orbital; end
 class Orbital::Spinner::PollingSpinner < Orbital::Spinner

@@ -1,7 +1,7 @@
 require 'pathname'
 
 require 'orbital/converger/cmd_runner'
-require 'orbital/core_ext/to_version'
+require 'orbital/ext/core/to_version'
 
 class Helm < CmdRunner
   def best_available_version(chart_spec, namespace: :default, version_constraint: nil)

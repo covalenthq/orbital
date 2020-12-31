@@ -9,15 +9,16 @@ require 'uri'
 require 'set'
 require 'pp'
 require 'date'
+require 'orbital/ext/core/to_flat_string'
+require 'orbital/ext/core/pathname_modify_as_yaml'
 
 require 'k8s-ruby'
+require 'orbital/ext/k8s-ruby/has_resource'
 require 'paint'
 
 require 'orbital/command'
 require 'orbital/kustomize'
 require 'orbital/spinner/polling_spinner'
-require 'orbital/core_ext/to_flat_string'
-require 'orbital/core_ext/pathname_modify_as_yaml'
 
 module Orbital; end
 module Orbital::Commands; end
@@ -352,7 +353,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       logger.step "trigger Github Actions workflow 'appctl-apply' on deployment repo"
 
-      require_relative 'trigger'
+      require 'orbital/commands/trigger'
 
       trigger_cmd = sibling_command(Orbital::Commands::Trigger,
         repo: "deployment",
