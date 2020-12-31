@@ -119,9 +119,19 @@ class Orbital::Commands::Deploy < Orbital::Command
     @context_validated = true
   end
 
-  def execute(input: $stdin, output: $stdout)
+  def execute
     self.validate_environment!
 
+    begin
+      do_execute
+    ensure
+      execute_deferred_cleanups
+    end
+  end
+
+  private
+
+  def do_execute
     active_env = @context.project.appctl.active_deploy_environment
     k8s_releasetrack_prev_transition_time = Time.at(0)
     deploy_start_time = Time.now
@@ -174,7 +184,6 @@ class Orbital::Commands::Deploy < Orbital::Command
         capturing_output: true
       ).strip
 
-      ar_return_to_ref = nil
       unless ar_checked_out_ref == ar_release_tag_ref
         ar_return_to_ref =
           if ar_checked_out_ref_symbolic == 'HEAD'
@@ -185,6 +194,11 @@ class Orbital::Commands::Deploy < Orbital::Command
 
         logger.step ["check out release tag '", @options.tag, "'"]
         run('git', 'checkout', '--quiet', ar_release_tag_ref)
+
+        defer_cleanup :app_repo_checkout do
+          run "git", "checkout", "--quiet", ar_return_to_ref
+          logger.success "return app worktree to previously-checked-out git ref"
+        end
       end
 
       logger.step ["build k8s resources for env '", Paint[@options.env, :bold], "'"]
@@ -225,15 +239,40 @@ class Orbital::Commands::Deploy < Orbital::Command
         )
       end
 
+      defer_cleanup :deployment_repo_checkout do
+        run(
+          'git', 'checkout', '--quiet', dr_log_branch,
+          chdir: @context.project.appctl.deployment_worktree.to_s
+        )
+        logger.success ["return deployment worktree to '", Paint[dr_log_branch, :bold], "' branch"]
+      end
+
       run(
         'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
+      defer_cleanup :deployment_worktree_clean do
+        run(
+          'git', 'clean', '-ffdx',
+          chdir: @context.project.appctl.deployment_worktree.to_s
+        )
+        logger.success ["clean deployment worktree"]
+      end
+
+      defer_cleanup :deployment_env_worktree_reset do
+        run(
+          'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
+          chdir: @context.project.appctl.deployment_worktree.to_s
+        )
+        logger.success ["reset deployment checkout to '", Paint["upstream/#{dr_env_branch}", :bold], "'"]
+      end
+
       artifact_path = @context.project.appctl.deployment_worktree / 'artifact.yaml'
 
       unless artifact_path.read == hydrated_config
         artifact_path.open('w'){ |f| f.write(hydrated_config) }
+
         run(
           'git', 'add', artifact_path.to_s,
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -264,6 +303,14 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       dr_env_tag = "#{dr_env_tag_base_name}.#{dr_env_tag_suffix_seq}"
 
+      defer_cleanup :deployment_repo_env_tag do
+        run(
+          'git', 'tag', '--delete', dr_env_tag,
+          chdir: @context.project.appctl.deployment_worktree.to_s
+        )
+        logger.success ["deleted git tag '", Paint[dr_env_tag, :bold], "'"]
+      end
+
       run(
         'git', 'tag', dr_env_tag,
         chdir: @context.project.appctl.deployment_worktree.to_s
@@ -274,10 +321,21 @@ class Orbital::Commands::Deploy < Orbital::Command
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
+      cancel_cleanup :deployment_env_worktree_reset
+      cancel_cleanup :deployment_repo_checkout
+
       run(
         'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
+
+      defer_cleanup :deployment_log_worktree_reset do
+        run(
+          'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
+          chdir: @context.project.appctl.deployment_worktree.to_s
+        )
+        logger.success ["reset deployment checkout to '", Paint["upstream/#{dr_log_branch}", :bold], "'"]
+      end
 
       envs_path = @context.project.appctl.deployment_worktree / 'environments.yaml'
       envs_path.modify_as_yaml do |docs|
@@ -304,23 +362,9 @@ class Orbital::Commands::Deploy < Orbital::Command
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
-      if ar_return_to_ref
-        logger.step ["clean up"]
-        run('git', 'checkout', '--quiet', ar_return_to_ref)
-      end
-
-      # TODO:
-      #   - in app repo:
-      #     - generate hydrated config: run kustomize(1) against ".appctl/config/#{@options.env}" dir
-      #     - get commit hash of release tag in app repo
-      #   - in deployment repo:
-      #     - check out + fast-forward "#{@options.env}" branch
-      #     - update + git-add README (arbitrary) to ensure at least a trivial change is made
-      #     - update + git-add artifact.yaml with hydrated config
-      #     - git commit
-      #     - git tag as "#{@options.tag}-#{@options.env}-#{app_repo_commit_hash[0..7]}.#{seq}"
-      #       where `seq` increments in case of collision with existing tag
-      #     - push branch, tag to upstream
+      cancel_cleanup :deployment_log_worktree_reset
+      cancel_cleanup :deployment_worktree_clean
+      cancel_cleanup :deployment_repo_env_tag
 
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
 

@@ -15,6 +15,8 @@ module Orbital
       @cli = cli
 
       @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
+      @deferred_cleanups = {}
+      @deferred_cleanups_order = []
     end
 
     def sibling_command(command_klass, **options)
@@ -58,31 +60,41 @@ module Orbital
       result
     end
 
-    # The cursor movement
-    #
-    # @see http://www.rubydoc.info/gems/tty-cursor
-    #
-    # @api public
+    def defer_cleanup(cleanup_key, &cleanup_proc)
+      @deferred_cleanups[cleanup_key] = cleanup_proc
+      @deferred_cleanups_order << cleanup_key
+    end
+
+    def cancel_cleanup
+      @deferred_cleanups.delete(cleanup_key)
+      @deferred_cleanups_order.delete(cleanup_key)
+    end
+
+    def execute_deferred_cleanups
+      deferred_procs =
+        @deferred_cleanups_order
+        .reverse
+        .map{ |k| @deferred_cleanups[k] }
+        .filter{ |v| v }
+
+      unless deferred_procs.empty?
+        self.logger.step "cleaning up"
+      end
+
+      deferred_procs.each(&:call)
+    end
+
+
     def cursor
       require 'tty-cursor'
       TTY::Cursor
     end
 
-    # Open a file or text in the user's preferred editor
-    #
-    # @see http://www.rubydoc.info/gems/tty-editor
-    #
-    # @api public
     def editor
       require 'tty-editor'
       TTY::Editor
     end
 
-    # File manipulation utility methods
-    #
-    # @see http://www.rubydoc.info/gems/tty-file
-    #
-    # @api public
     def generator
       require 'tty-file'
       TTY::File
@@ -93,61 +105,26 @@ module Orbital
       TTY::Link.link_to(text, uri)
     end
 
-    # Terminal output paging
-    #
-    # @see http://www.rubydoc.info/gems/tty-pager
-    #
-    # @api public
     def pager(**options)
       require 'tty-pager'
       TTY::Pager.new(options)
     end
 
-    # Terminal platform and OS properties
-    #
-    # @see http://www.rubydoc.info/gems/tty-pager
-    #
-    # @api public
-    def platform
-      require 'tty-platform'
-      TTY::Platform.new
-    end
-
-    # The interactive prompt
-    #
-    # @see http://www.rubydoc.info/gems/tty-prompt
-    #
-    # @api public
     def prompt(**options)
       require 'tty-prompt'
       TTY::Prompt.new(options)
     end
 
-    # Get terminal screen properties
-    #
-    # @see http://www.rubydoc.info/gems/tty-screen
-    #
-    # @api public
     def screen
       require 'tty-screen'
       TTY::Screen
     end
 
-    # The unix which utility
-    #
-    # @see http://www.rubydoc.info/gems/tty-which
-    #
-    # @api public
     def which(*args)
       require 'tty-which'
       TTY::Which.which(*args)
     end
 
-    # Check if executable exists
-    #
-    # @see http://www.rubydoc.info/gems/tty-which
-    #
-    # @api public
     def exec_exist?(*args)
       require 'tty-which'
       TTY::Which.exist?(*args)
