@@ -13,7 +13,7 @@ require 'orbital/ext/core/to_flat_string'
 require 'orbital/ext/core/pathname_modify_as_yaml'
 
 require 'k8s-ruby'
-require 'orbital/ext/k8s-ruby/has_resource'
+require 'orbital/ext/k8s-ruby/resource_client_helpers'
 require 'paint'
 
 require 'orbital/command'
@@ -140,14 +140,10 @@ class Orbital::Commands::Deploy < Orbital::Command
       self.k8s_client
 
       logger.step "examine existing k8s resources"
-      begin
-        resource =
-          self.k8s_client.api('app.gke.io/v1beta1')
-          .resource('releasetracks', namespace: @context.project.appctl.active_deploy_environment.namespace)
-          .get(@context.project.appctl.application_name)
 
+      if reltrack = active_env.k8s_resources.releasetracks.maybe_get(active_env.k8s_app_resource_name)
         last_transition_dt_str =
-          resource.status.conditions.last.lastTransitionTime
+          reltrack.status.conditions.last.lastTransitionTime
 
         k8s_releasetrack_prev_transition_time =
           DateTime.parse(last_transition_dt_str).to_time
@@ -157,8 +153,8 @@ class Orbital::Commands::Deploy < Orbital::Command
           " on ", Paint[k8s_releasetrack_prev_transition_time.localtime.strftime("%Y-%m-%d"), :bold],
           " at ", Paint[k8s_releasetrack_prev_transition_time.localtime.strftime("%I:%M:%S %p %Z"), :bold]
         ]
-      rescue => e
-        logger.info "no existing resources found for env '", Paint[@options.env, :bold], "'"
+      else
+        logger.info ["no existing resources found for env '", Paint[@options.env, :bold], "'"]
       end
     end
 
@@ -339,8 +335,8 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       envs_path = @context.project.appctl.deployment_worktree / 'environments.yaml'
       envs_path.modify_as_yaml do |docs|
-        active_env = docs[0]['envs'].find{ |env| env['name'] == @options.env }
-        active_env['last_update_time'] = deploy_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        active_env_part = docs[0]['envs'].find{ |env| env['name'] == @options.env }
+        active_env_part['last_update_time'] = deploy_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
         docs
       end
       run(
@@ -384,9 +380,10 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       logger.step ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
-      Dir.chdir(@context.project.appctl.deployment_worktree_root.to_s) do
-        run 'git', 'checkout', @context.project.appctl.deployment_repo.default_branch
-      end
+      run(
+        'git', 'checkout', @context.project.appctl.deployment_repo.default_branch,
+        chdir: @context.project.appctl.deployment_worktree_root.to_s
+      )
 
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "apply", @options.env, "--from-tag", @options.tag
@@ -553,14 +550,10 @@ class Orbital::Commands::Deploy::K8sConvergePoller < Orbital::Spinner::PollingSp
   attr_accessor :prev_transition_time
 
   def poll
-    begin
-      @k8s_client.api('app.gke.io/v1beta1')
-      .resource('releasetracks', namespace: @k8s_namespace)
-      .get(@k8s_app_name)
-      .status
-    rescue K8s::Error::NotFound
-      nil
-    end
+    @k8s_client.api('app.gke.io/v1beta1')
+    .resource('releasetracks', namespace: @k8s_namespace)
+    .maybe_get(@k8s_app_name)
+    &.status
   end
 
   def transition_time(resource_status)

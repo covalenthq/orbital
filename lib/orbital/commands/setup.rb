@@ -25,7 +25,7 @@
 
     @last_description = "generates and installs a local CA cert into the cluster for development use"
     define_task(Rake::Task, 'dev:cluster:ca-cert' => ["local:ca-cert", 'cluster:namespaces']) do
-      next if @remote_resources.infra_secrets.has_resource?('local-ca')
+      next if @remote_resources.infra_secrets.member?('local-ca')
 
       local_ca_tls_secret = K8s::Resource.new(
         apiVersion: 'v1',
@@ -48,7 +48,7 @@
     define_task(Rake::Task, 'dev:cluster:registry-access' => ['cluster:namespaces']) do
       cduser_gcp_svcacct = "cduser@covalent-project.iam.gserviceaccount.com"
 
-      next if @remote_resources.infra_secrets.has_resource?('covalent-project-gcr-auth')
+      next if @remote_resources.infra_secrets.member?('covalent-project-gcr-auth')
 
       creds_path =
         @runners.gcloud.ensure_key_for_service_account!(cduser_gcp_svcacct)
@@ -107,7 +107,7 @@
     end
 
     define_task(Rake::Task, "prod:cluster:cloudflare-api-access" => ['cluster:namespaces']) do
-      next if @remote_resources.infra_secrets.has_resource?('cloudflare-api')
+      next if @remote_resources.infra_secrets.member?('cloudflare-api')
 
       token = prompt.mask("Cloudflare API token:") do |q|
         q.required true
@@ -154,7 +154,7 @@
     end
 
     define_task(Rake::Task, 'cluster:infra-namespace') do
-      next if @remote_resources.namespaces.has_resource?('infrastructure')
+      next if @remote_resources.namespaces.member?('infrastructure')
 
       ns_resource = K8s::Resource.new(
         apiVersion: 'v1',
