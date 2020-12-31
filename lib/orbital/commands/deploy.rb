@@ -137,7 +137,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     deploy_start_time = Time.now
 
     if @options.wait
-      self.k8s_client
+      self.ensure_k8s_client_configured_for_active_env!
 
       logger.step "examine existing k8s resources"
 
@@ -160,7 +160,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     case @options.deployer
     when :internal
-      self.k8s_client
+      self.ensure_k8s_client_configured_for_active_env!
 
       dr_log_branch = @context.project.appctl.deployment_repo.default_branch
       dr_env_branch = @options.env
@@ -363,14 +363,22 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
 
-      # TODO:
-      # - ensure kubectl current-context is pointed to target cluster
-      # - detect if k8s CRD releasetracks.app.gke.io is available; if not, abort
-      # - create "#{active_env.namespace}" namespace
+      if active_env.k8s_resources.crds.member?('releasetracks.app.gke.io')
+        logger.success ["target cluster '", Paint[active_env.gke_cluster_name, :bold], "' has KALM installed"]
+      else
+        logger.fatal ["KALM not installed into the target k8s cluster!"]
+      end
+
+      if active_env.k8s_resources.ensure_app_namespace!
+        logger.success ["create k8s namespace '", Paint[active_env.k8s_namespace, :bold], "'"]
+      else
+        logger.info ["k8s namespace '", Paint[active_env.k8s_namespace, :bold], "' exists"]
+      end
+
+      # TODO (appctl-apply phase):
       # - create deployer ServiceAccount in namespace, and ClusterRoleBinding to deployer ClusterRole
       # - create git-token secret in namespace (github token w/ read permission on deployment repo)
       # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
-      # - if we switched kubectl contexts at the beginning, switch back
 
       return
 
@@ -403,9 +411,9 @@ class Orbital::Commands::Deploy < Orbital::Command
       trigger_cmd.add_inputs({
         target_env: active_env.name,
         release_name: @options.tag,
-        gcp_project_name: active_env.project,
-        gcp_compute_zone: active_env.compute.zone,
-        gke_cluster_name: active_env.cluster_name
+        gcp_project_name: active_env.gcp_project,
+        gcp_compute_zone: active_env.gcp_compute_zone,
+        gke_cluster_name: active_env.gke_cluster_name
       })
 
       logger.fatal "workflow failed!" unless trigger_cmd.execute
@@ -421,7 +429,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         Paint[@options.env, :bold],
         "'.\n\nPlease ",
         link_to(
-          @context.project.appctl.gke_app_dashboard_uri,
+          active_env.gke_app_dashboard_uri,
           "visit the Google Kubernetes Engine details page for this application"
         ),
         " to ensure resources have converged."
@@ -430,7 +438,7 @@ class Orbital::Commands::Deploy < Orbital::Command
       return
     end
 
-    self.k8s_client
+    self.ensure_k8s_client_configured_for_active_env!
 
     logger.step "wait for k8s to converge", flush: true
 
@@ -445,10 +453,10 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     poller = K8sConvergePoller.new(wait_text: wait_text)
     poller.prev_transition_time = k8s_releasetrack_prev_transition_time
-    poller.k8s_client = self.k8s_client
+    poller.k8s_client = active_env.k8s_client
     poller.tag_to_match = @options.tag
-    poller.k8s_app_name = @context.project.appctl.application_name
-    poller.k8s_namespace = active_env.namespace
+    poller.k8s_app_name = active_env.k8s_app_resource_name
+    poller.k8s_namespace = active_env.k8s_namespace
 
     poller.run
 
@@ -486,24 +494,28 @@ class Orbital::Commands::Deploy < Orbital::Command
     logger.info [
       "You can ",
       link_to(
-        @context.project.appctl.gke_app_dashboard_uri,
+        active_env.gke_app_dashboard_uri,
         "visit the Google Kubernetes Engine details page for this application"
       ),
       " to view detailed status information."
     ]
   end
 
-  def k8s_client
-    return @k8s_client if @k8s_client
+  def ensure_k8s_client_configured_for_active_env!
+    return if @k8s_client_configured_for_active_env
 
-    unless @context.shell.kubectl_config_path.file?
-      logger.step "get k8s cluster credentials"
-      run "gcloud", "container", "clusters", "get-credentials", active_env.cluster_name,
-        "--project=#{active_env.project}",
-        "--zone=#{active_env.compute.zone}"
+    @context.project.appctl.k8s_config_file_populator = lambda do |env|
+      logger.step ["get k8s cluster credentials for env '", env.name, "'"]
+
+      run "gcloud", "container", "clusters", "get-credentials", env.gke_cluster_name,
+        "--project=#{env.gcp_project}",
+        "--zone=#{env.gcp_compute_zone}"
     end
 
-    @k8s_client = K8s::Client.config(K8s::Config.load_file(@context.shell.kubectl_config_path))
+    active_env = @context.project.appctl.active_deploy_environment
+    active_env.k8s_client
+
+    @k8s_client_configured_for_active_env = true
   end
 
   def ensure_up_to_date_deployment_repo

@@ -55,6 +55,8 @@ class Orbital::Context
     @probed_project = true
     require 'orbital/context/project'
     @project = Orbital::Context::Project.detect(@cfg[:wd])
+    @project.parent_context = self if @project
+    @project
   end
 
   def machine
@@ -89,18 +91,22 @@ class Orbital::Context
     @validations_done.add(validation_name)
   end
 
-  def k8s_client
-    return @k8s_client if @k8s_client
-    require 'k8s-ruby'
-    @k8s_client = K8s::Client.config(K8s::Config.load_file(self.shell.kubectl_config_path))
-    @k8s_client.apis(prefetch_resources: true)
-    @k8s_client
+  def global_k8s_config
+    K8s::Config.load_file(self.shell.kubectl_config_path)
   end
 
-  def k8s_resources
-    return @k8s_resources if @k8s_resources
+  def global_k8s_client
+    return @global_k8s_client if @global_k8s_client
+    require 'k8s-ruby'
+    @global_k8s_client = K8s::Client.config(@global_k8s_config)
+    @global_k8s_client.apis(prefetch_resources: true)
+    @global_k8s_client
+  end
+
+  def global_k8s_resources
+    return @global_k8s_resources if @global_k8s_resources
     require 'orbital/context/k8s_known_resources'
-    @k8s_resources = Orbital::Context::K8sKnownResources.new(self.k8s_client)
+    @global_k8s_resources = Orbital::Context::K8sKnownResources.new(self.global_k8s_client)
   end
 
   def gcloud_client

@@ -21,6 +21,8 @@ class Orbital::Context::Appctl
     @config = RecursiveOpenStruct.new(appctl_config, recurse_over_arrays: true)
   end
 
+  attr_accessor :parent_project
+
   def application_name
     @config.application_name
   end
@@ -69,20 +71,23 @@ class Orbital::Context::Appctl
     })
   end
 
+  attr_accessor :k8s_config_file_populator
+
   def deploy_environments
     return @deploy_environments if @deploy_environments
     return nil unless dwt = self.deployment_worktree
 
     envs_path = dwt / 'environments.yaml'
 
-    @deploy_environments = RecursiveOpenStruct.new(
-      YAML.load(envs_path.read)['envs'].map{ |e| [e['name'], e] }.to_h,
-      recurse_over_arrays: true
-    )
+    @deploy_environments = YAML.load(envs_path.read)['envs'].map do |env_cfg|
+      env = Orbital::Context::Appctl::DeployEnvironment.new(env_cfg)
+      env.parent_appctl = self
+      [env.name.intern, env]
+    end.to_h
   end
 
-  def select_deploy_environment(env_name)
-    @active_deploy_environment_name = env_name.to_s.intern
+  def select_deploy_environment(name:)
+    @active_deploy_environment_name = name.to_s.intern
   end
 
   def active_deploy_environment
@@ -90,10 +95,69 @@ class Orbital::Context::Appctl
     return nil unless denvs and @active_deploy_environment_name
     denvs[@active_deploy_environment_name]
   end
+end
+
+class Orbital::Context::Appctl::DeployEnvironment
+  def initialize(config)
+    @config = config
+  end
+
+  attr_accessor :parent_appctl
+
+  def name; @config['name']; end
+
+  def gcp_project; @config['project']; end
+  def gcp_compute_zone; @config['compute']['zone']; end
+  def gke_cluster_name; @config['cluster_name']; end
+
+  def k8s_namespace; @config['namespace']; end
+  def k8s_app_resource_name; @parent_appctl.application_name; end
 
   def gke_app_dashboard_uri
-    active_env = self.active_deploy_environment
+    URI("https://console.cloud.google.com/kubernetes/application/#{self.gcp_compute_zone}/#{self.gke_cluster_name}/#{self.k8s_namespace}/#{self.k8s_app_resource_name}?project=#{self.gcp_project}")
+  end
 
-    URI("https://console.cloud.google.com/kubernetes/application/#{active_env.compute.zone}/#{active_env.cluster_name}/#{active_env.namespace}/#{@config.application_name}?project=#{active_env.project}")
+  def kubectl_context_name
+    "gke_#{self.gcp_project}_#{self.gcp_compute_zone}_#{self.gke_cluster_name}"
+  end
+
+  def kubectl_config
+    return @kubectl_config if @kubectl_config
+
+    @kubectl_config =
+      begin
+        self.try_building_kubectl_config!
+      rescue => e
+        if populator = @parent_appctl.k8s_config_file_populator
+          populator.call(self)
+          self.try_building_kubectl_config!
+        else
+          raise
+        end
+      end
+  end
+
+  def try_building_kubectl_config!
+    cfg = @parent_appctl.parent_project.parent_context.global_k8s_config
+    expected_ctx_name = self.kubectl_context_name
+    raise KeyError unless cfg.contexts.find{ |ctx| ctx.name == expected_ctx_name }
+    cfg.attributes['current-context'] = expected_ctx_name
+    cfg
+  end
+
+  def k8s_client
+    return @k8s_client if @k8s_client
+    require 'k8s-ruby'
+    @k8s_client = K8s::Client.config(self.kubectl_config)
+    @k8s_client.apis(prefetch_resources: true)
+    @k8s_client
+  end
+
+  def k8s_resources
+    return @k8s_resources if @k8s_resources
+    require 'orbital/context/k8s_known_resources'
+    @k8s_resources = Orbital::Context::K8sKnownResources.new(self.k8s_client)
+    @k8s_resources.parent_deploy_environment = self
+    @k8s_resources
   end
 end

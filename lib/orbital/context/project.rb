@@ -22,6 +22,8 @@ class Orbital::Context::Project
     @root = root
   end
 
+  attr_accessor :parent_context
+
   attr_accessor :environment
 
   attr_reader :root
@@ -39,8 +41,7 @@ class Orbital::Context::Project
   end
 
   def config
-    return @orbital_config if @probed_orbital_config
-    @probed_orbital_config = true
+    return @orbital_config if @orbital_config
 
     @orbital_config =
       if self.config_path.file?
@@ -64,8 +65,11 @@ class Orbital::Context::Project
   def appctl
     return @appctl if @probed_appctl
     @probed_appctl = true
+
     require 'orbital/context/appctl'
     @appctl = Orbital::Context::Appctl.detect(@root)
+    @appctl.parent_project = self if @appctl
+    @appctl
   end
 
   def appctl!
