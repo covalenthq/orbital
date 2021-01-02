@@ -55,6 +55,10 @@ class Orbital::Context::Project
       end
   end
 
+  def schema_version
+    self.config['schema_version'] || 0
+  end
+
   def template_paths
     return @template_paths if @template_paths
 
