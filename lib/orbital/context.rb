@@ -36,6 +36,10 @@ class Orbital::Context
     @validations_done = Set.new
   end
 
+  def get_binding
+    binding
+  end
+
   attr_accessor :uuid
 
   def sdk

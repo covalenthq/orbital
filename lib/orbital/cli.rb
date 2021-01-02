@@ -52,6 +52,12 @@ class Orbital::CLI < Orbital::CommandRouter
   end
   map %w(--version -v) => :version
 
+  desc 'console', 'Start a REPL with context available', hide: true
+  def console(*)
+    require 'orbital/commands/console'
+    Orbital::Commands::Console.new(self, options).execute
+  end
+
   desc 'trigger', 'Trigger Github Actions workflows for project'
   method_option :repo, aliases: '-r', type: :string,
                        desc: "Repo to target (app, deployment, or \"username/reponame\")"
