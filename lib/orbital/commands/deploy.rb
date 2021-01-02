@@ -9,6 +9,7 @@ require 'uri'
 require 'set'
 require 'pp'
 require 'date'
+require 'orbital/ext/core/uri_join'
 require 'orbital/ext/core/to_flat_string'
 require 'orbital/ext/core/pathname_modify_as_yaml'
 
@@ -361,7 +362,13 @@ class Orbital::Commands::Deploy < Orbital::Command
       cleanup_for_deployment_worktree_dirty.cancel
       cleanup_for_deployment_repo_unpushed_env_tag.cancel
 
-      logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
+      dr_env_tag_ref = run(
+        'git', 'rev-parse', "refs/tags/#{dr_env_tag}",
+        chdir: @context.project.appctl.deployment_worktree.to_s,
+        capturing_output: true
+      ).strip
+
+      logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold], ' (', dr_env_tag, ')']
 
       if active_env.k8s_resources.crds.member?('releasetracks.app.gke.io')
         logger.success ["target cluster '", Paint[active_env.gke_cluster_name, :bold], "' has KALM installed"]
@@ -380,7 +387,63 @@ class Orbital::Commands::Deploy < Orbital::Command
       # - create git-token secret in namespace (github token w/ read permission on deployment repo)
       # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
 
-      return
+      unless active_env.k8s_resources.releasetracks.member?(active_env.k8s_app_resource_name)
+        logger.fatal ["support for initial environment stand-up has not been implemented"]
+      end
+
+      reltrack_patch_doc = {
+        annotations: {
+          'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
+          'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
+          'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+        },
+        spec: {
+          version: dr_env_tag,
+        }
+      }
+
+      active_env.k8s_resources.releasetracks.merge_patch(
+        active_env.k8s_app_resource_name,
+        reltrack_patch_doc,
+        strategic_merge: false
+      )
+
+      logger.success ["retarget k8s releasetrack resource '", Paint["#{active_env.k8s_namespace}/#{active_env.k8s_app_resource_name}", :bold], "' to deployment-repo tag '", Paint[dr_env_tag, :bold], "'"]
+
+      # reltrack_res = active_env.k8s_resources.releasetracks.maybe_get(active_env.k8s_app_resource_name)
+      # else
+      #   reltrack_rc = K8s::Resource.new(
+      #     apiVersion: 'app.gke.io/v1beta1',
+      #     kind: 'ReleaseTrack',
+      #     metadata: {
+      #       name: active_env.k8s_app_resource_name,
+      #       namespace: active_env.k8s_namespace,
+      #       annotations: {
+      #         'appctl.gke.io/config-repo' => @context.project.appctl.app_repo.uri,
+      #         'appctl.gke.io/deployment-repo' => @context.project.appctl.deployment_repo.uri,
+      #         'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
+      #         'appctl.gke.io/deployment-all-tags' => @context.project.appctl.deployment_repo.uri.join("/tags"),
+      #         'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
+      #         'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+      #       }
+      #     },
+      #     spec: {
+      #       sourceRepository: {
+      #         type: 'Git',
+      #         url: @context.project.appctl.deployment_repo.uri.join("?branch=#{active_env.name}"),
+      #         secretRef: {
+      #           name: 'git-token'
+      #         }
+      #       },
+      #       name: active_env.k8s_app_resource_name,
+      #       version: dr_env_tag,
+      #       applicationRef: {
+      #         name: active_env.k8s_app_resource_name,
+      #       },
+      #       serviceAccountName: 'deployer'
+      #     }
+      #   )
+      # end
 
     when :appctl
       self.ensure_up_to_date_deployment_repo
