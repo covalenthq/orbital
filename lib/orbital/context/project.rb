@@ -81,4 +81,8 @@ class Orbital::Context::Project
 
     appctl_inst
   end
+
+  def inspect
+    "#<Orbital/Project root=#{@root.to_s.inspect}>"
+  end
 end

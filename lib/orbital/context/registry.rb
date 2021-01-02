@@ -27,4 +27,8 @@ class Orbital::Context::Registry
 
     @instances[uuid]
   end
+
+  def inspect
+    "#<Orbital/ContextRegistry>"
+  end
 end

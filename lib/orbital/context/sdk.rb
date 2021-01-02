@@ -58,4 +58,8 @@ class Orbital::Context::SDK
   def k8s_resource_configs_dir
     @root / 'share' / 'setup' / 'resources'
   end
+
+  def inspect
+    "#<Orbital/SDK root=#{@root.to_s.inspect}>"
+  end
 end

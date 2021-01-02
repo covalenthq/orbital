@@ -132,4 +132,8 @@ class Orbital::Context
     certs_store = self.sdk.state_dir / 'setup' / 'local-ca-cert'
     @mkcert_client = MkCert.new(certs_store)
   end
+
+  def inspect
+    "#<Orbital::Context>"
+  end
 end

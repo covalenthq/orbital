@@ -62,4 +62,8 @@ class Orbital::Context::K8sKnownResources
   def infra_secrets
     @k8s_client.api('v1').resource('secrets', namespace: 'infrastructure')
   end
+
+  def inspect
+    "#<Orbital/K8sKnownResources ns=#{self.k8s_namespace.inspect} app=#{self.k8s_app_resource_name.inspect}>"
+  end
 end

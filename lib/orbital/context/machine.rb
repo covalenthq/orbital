@@ -11,4 +11,8 @@ class Orbital::Context::Machine
     require 'tty-platform'
     @platform = TTY::Platform.new
   end
+
+  def inspect
+    "#<Orbital/Machine>"
+  end
 end

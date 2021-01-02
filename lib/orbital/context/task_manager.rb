@@ -39,4 +39,8 @@ class Orbital::Context::TaskManager
   def env_requirements(klass)
     @env_dependencies[klass] || Set.new
   end
+
+  def inspect
+    "#<Orbital/TaskManager>"
+  end
 end

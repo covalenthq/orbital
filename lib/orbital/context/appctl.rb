@@ -95,6 +95,10 @@ class Orbital::Context::Appctl
     return nil unless denvs and @active_deploy_environment_name
     denvs[@active_deploy_environment_name]
   end
+
+  def inspect
+    "#<Orbital/App #{@config.application_name}>"
+  end
 end
 
 class Orbital::Context::Appctl::DeployEnvironment
@@ -105,6 +109,10 @@ class Orbital::Context::Appctl::DeployEnvironment
   attr_accessor :parent_appctl
 
   def name; @config['name']; end
+
+  def active?
+    @parent_appctl.active_deploy_environment.equal?(self)
+  end
 
   def gcp_project; @config['project']; end
   def gcp_compute_zone; @config['compute']['zone']; end
@@ -159,5 +167,9 @@ class Orbital::Context::Appctl::DeployEnvironment
     @k8s_resources = Orbital::Context::K8sKnownResources.new(self.k8s_client)
     @k8s_resources.parent_deploy_environment = self
     @k8s_resources
+  end
+
+  def inspect
+    "#<Orbital/DeployEnvironment name=#{self.name.inspect} active=#{self.active?}>"
   end
 end

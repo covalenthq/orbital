@@ -27,4 +27,8 @@ class Orbital::Context::Shell
   def kubectl_config_path
     @homedir / '.kube' / 'config'
   end
+
+  def inspect
+    "#<Orbital/Shell homedir=#{self.homedir.inspect}>"
+  end
 end
