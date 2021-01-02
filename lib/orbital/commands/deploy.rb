@@ -394,10 +394,12 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
 
       reltrack_patch_doc = {
-        annotations: {
-          'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
-          'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
-          'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+        metadata: {
+          annotations: {
+            'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
+            'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
+            'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+          }
         },
         spec: {
           version: dr_env_tag,
