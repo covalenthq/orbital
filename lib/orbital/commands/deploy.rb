@@ -373,23 +373,27 @@ class Orbital::Commands::Deploy < Orbital::Command
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold], ' (', dr_env_tag, ')']
 
       if active_env.k8s_resources.crds.member?('releasetracks.app.gke.io')
-        logger.success ["target cluster '", Paint[active_env.gke_cluster_name, :bold], "' has KALM installed"]
+        logger.skipped ["target cluster '", Paint[active_env.gke_cluster_name, :bold], "' has KALM installed"]
       else
+        # TODO: install KALM
         logger.fatal ["KALM not installed into the target k8s cluster!"]
       end
 
       if active_env.k8s_resources.ensure_app_namespace!
         logger.success ["create k8s namespace '", Paint[active_env.k8s_namespace, :bold], "'"]
       else
-        logger.info ["k8s namespace '", Paint[active_env.k8s_namespace, :bold], "' exists"]
+        logger.skipped ["k8s namespace '", Paint[active_env.k8s_namespace, :bold], "' exists"]
       end
 
-      # TODO (appctl-apply phase):
-      # - create deployer ServiceAccount in namespace, and ClusterRoleBinding to deployer ClusterRole
-      # - create git-token secret in namespace (github token w/ read permission on deployment repo)
-      # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
+      reltrack_res_name = [active_env.k8s_namespace, active_env.k8s_app_resource_name].join('/')
 
-      unless active_env.k8s_resources.releasetracks.member?(active_env.k8s_app_resource_name)
+      if old_reltrack_res = active_env.k8s_resources.releasetracks.maybe_get(active_env.k8s_app_resource_name)
+        logger.skipped ["k8s releasetrack '", Paint[reltrack_res_name, :bold], "' exists"]
+      else
+        # TODO (appctl-apply phase):
+        # - create deployer ServiceAccount in namespace, and ClusterRoleBinding to deployer ClusterRole
+        # - create git-token secret in namespace (github token w/ read permission on deployment repo)
+        # - create/update releasetrack for "#{active_env.namespace}/#{app_name}"
         logger.fatal ["support for initial environment stand-up has not been implemented"]
       end
 
@@ -412,7 +416,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         strategic_merge: false
       )
 
-      logger.success ["retarget k8s releasetrack resource '", Paint["#{active_env.k8s_namespace}/#{active_env.k8s_app_resource_name}", :bold], "' to deployment-repo tag '", Paint[dr_env_tag, :bold], "'"]
+      logger.success ["retarget k8s releasetrack resource '", Paint[reltrack_res_name, :bold], "' to deployment-repo tag '", Paint[dr_env_tag, :bold], "'"]
 
       # reltrack_res = active_env.k8s_resources.releasetracks.maybe_get(active_env.k8s_app_resource_name)
       # else

@@ -173,6 +173,17 @@ class Orbital::Logger
     .text("\n")
     .to_ansi
   end
+
+  def style_skipped(builder, msg_body)
+    builder
+    .sgr{ |sgr| sgr.fg(:yellow) }
+    .text("↯ ")
+    .sgr{ |sgr| sgr.fg(:default).on(:dim) }
+    .text(msg_body)
+    .sgr{ |sgr| sgr.reset }
+    .text("\n")
+    .to_ansi
+  end
 end
 
 class Orbital::Logger::MessageBuilder
