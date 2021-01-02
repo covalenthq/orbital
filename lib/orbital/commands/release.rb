@@ -49,7 +49,7 @@ class Orbital::Commands::Release < Orbital::Command
     end
 
     @context.validate :has_appctlconfig do
-      @context.project.appctl!
+      @context.application!
       logger.success ["project is configured for appctl (", Paint[".appctlconfig", :bold], " is available)"]
     end
 
@@ -83,7 +83,7 @@ class Orbital::Commands::Release < Orbital::Command
     @release.from_git_ref = `git rev-parse HEAD`.strip
     logger.success "get branch and/or ref to return to"
 
-    deployment = @context.project.appctl.k8s_resource('base/deployment.yaml')
+    deployment = @context.application.k8s_resource('base/deployment.yaml')
     @release.docker_image = OpenStruct.new(
       name: deployment.spec.template.spec.containers[0].image.split(":")[0]
     )
@@ -194,7 +194,7 @@ class Orbital::Commands::Release < Orbital::Command
       template_path.open('w'){ |f| f.write(patched_doc) }
     end
 
-    kustomization_path = @context.project.appctl.k8s_resources / 'base' / 'kustomization.yaml'
+    kustomization_path = @context.application.k8s_resources / 'base' / 'kustomization.yaml'
     kustomization_doc = YAML.load(kustomization_path.read)
     kustomization_doc['images'] ||= []
     kustomization_doc['images'].push({

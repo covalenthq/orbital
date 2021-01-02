@@ -6,7 +6,7 @@ require 'recursive-open-struct'
 module Orbital; end
 class Orbital::Context; end
 
-class Orbital::Context::Appctl
+class Orbital::Context::Application
   def self.detect(project_root)
     appctl_config_path = project_root / '.appctlconfig'
     if appctl_config_path.file?
@@ -23,7 +23,7 @@ class Orbital::Context::Appctl
 
   attr_accessor :parent_project
 
-  def application_name
+  def name
     @config.application_name
   end
 
@@ -80,8 +80,8 @@ class Orbital::Context::Appctl
     envs_path = dwt / 'environments.yaml'
 
     @deploy_environments = YAML.load(envs_path.read)['envs'].map do |env_cfg|
-      env = Orbital::Context::Appctl::DeployEnvironment.new(env_cfg)
-      env.parent_appctl = self
+      env = Orbital::Context::Application::DeployEnvironment.new(env_cfg)
+      env.parent_application = self
       [env.name.intern, env]
     end.to_h
   end
@@ -101,17 +101,17 @@ class Orbital::Context::Appctl
   end
 end
 
-class Orbital::Context::Appctl::DeployEnvironment
+class Orbital::Context::Application::DeployEnvironment
   def initialize(config)
     @config = config
   end
 
-  attr_accessor :parent_appctl
+  attr_accessor :parent_application
 
   def name; @config['name']; end
 
   def active?
-    @parent_appctl.active_deploy_environment.equal?(self)
+    @parent_application.active_deploy_environment.equal?(self)
   end
 
   def gcp_project; @config['project']; end
@@ -119,7 +119,7 @@ class Orbital::Context::Appctl::DeployEnvironment
   def gke_cluster_name; @config['cluster_name']; end
 
   def k8s_namespace; @config['namespace']; end
-  def k8s_app_resource_name; @parent_appctl.application_name; end
+  def k8s_app_resource_name; @parent_application.name; end
 
   def gke_app_dashboard_uri
     URI("https://console.cloud.google.com/kubernetes/application/#{self.gcp_compute_zone}/#{self.gke_cluster_name}/#{self.k8s_namespace}/#{self.k8s_app_resource_name}?project=#{self.gcp_project}")
@@ -136,7 +136,7 @@ class Orbital::Context::Appctl::DeployEnvironment
       begin
         self.try_building_kubectl_config!
       rescue => e
-        if populator = @parent_appctl.k8s_config_file_populator
+        if populator = @parent_application.k8s_config_file_populator
           populator.call(self)
           self.try_building_kubectl_config!
         else
@@ -146,7 +146,7 @@ class Orbital::Context::Appctl::DeployEnvironment
   end
 
   def try_building_kubectl_config!
-    cfg = @parent_appctl.parent_project.parent_context.global_k8s_config
+    cfg = @parent_application.parent_project.parent_context.global_k8s_config
     expected_ctx_name = self.kubectl_context_name
     raise KeyError unless cfg.contexts.find{ |ctx| ctx.name == expected_ctx_name }
     cfg.attributes['current-context'] = expected_ctx_name

@@ -89,6 +89,16 @@ class Orbital::Context
     proj
   end
 
+  def application
+    return nil unless proj = self.project
+    proj.application
+  end
+
+  def application!
+    proj = self.project!
+    proj.application!
+  end
+
   def validate(validation_name)
     return true if @validations_done.member?(validation_name)
     yield

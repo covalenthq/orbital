@@ -44,11 +44,11 @@ class Orbital::Commands::Trigger < Orbital::Command
 
     case @options.repo
     when :app
-      @options.repo = @context.project.appctl.app_repo.uri.path[1..-1]
-      @options.branch ||= @context.project.appctl.app_repo.default_branch
+      @options.repo = @context.application.app_repo.uri.path[1..-1]
+      @options.branch ||= @context.application.app_repo.default_branch
     when :deployment
-      @options.repo = @context.project.appctl.deployment_repo.uri.path[1..-1]
-      @options.branch ||= @context.project.appctl.deployment_repo.default_branch
+      @options.repo = @context.application.deployment_repo.uri.path[1..-1]
+      @options.branch ||= @context.application.deployment_repo.default_branch
     else
       @options.branch ||= "master"
     end

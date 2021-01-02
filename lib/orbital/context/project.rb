@@ -62,24 +62,24 @@ class Orbital::Context::Project
       end
   end
 
-  def appctl
-    return @appctl if @probed_appctl
-    @probed_appctl = true
+  def application
+    return @application if @probed_application
+    @probed_application = true
 
-    require 'orbital/context/appctl'
-    @appctl = Orbital::Context::Appctl.detect(@root)
-    @appctl.parent_project = self if @appctl
-    @appctl
+    require 'orbital/context/application'
+    @application = Orbital::Context::Application.detect(@root)
+    @application.parent_project = self if @application
+    @application
   end
 
-  def appctl!
-    appctl_inst = self.appctl
+  def application!
+    app_inst = self.application
 
-    unless appctl_inst
+    unless app_inst
       raise Orbital::CommandValidationError.new("active project must contain an .appctlconfig")
     end
 
-    appctl_inst
+    app_inst
   end
 
   def inspect

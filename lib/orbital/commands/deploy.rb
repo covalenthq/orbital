@@ -27,8 +27,8 @@ class Orbital::Commands::Deploy < Orbital::Command
   def initialize(*opts)
     super(*opts)
     @options.deployer = @options.deployer.intern
-    if @context.project and @context.project.appctl
-      @context.project.appctl.select_deploy_environment(@options.env)
+    if app = @context.application
+      app.select_deploy_environment(@options.env)
     end
   end
 
@@ -97,7 +97,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
 
     @context.validate :has_appctlconfig do
-      @context.project.appctl!
+      @context.application!
       logger.success ["project is configured for appctl (", Paint[".appctlconfig", :bold], " is available)"]
     end
 
@@ -135,7 +135,7 @@ class Orbital::Commands::Deploy < Orbital::Command
   def do_execute
     self.ensure_cloned_deployment_repo
 
-    active_env = @context.project.appctl.active_deploy_environment
+    active_env = @context.application.active_deploy_environment
     k8s_releasetrack_prev_transition_time = Time.at(0)
     deploy_start_time = Time.now
 
@@ -165,7 +165,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     when :internal
       self.ensure_k8s_client_configured_for_active_env!
 
-      dr_log_branch = @context.project.appctl.deployment_repo.default_branch
+      dr_log_branch = @context.application.deployment_repo.default_branch
       dr_env_branch = @options.env
 
       ar_checked_out_ref = run(
@@ -201,9 +201,9 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
 
       logger.step ["build k8s resources for env '", Paint[@options.env, :bold], "'"]
-      kustomization_target_dir = @context.project.appctl.k8s_resources / 'envs' / @options.env
+      kustomization_target_dir = @context.application.k8s_resources / 'envs' / @options.env
       unless kustomization_target_dir.directory?
-        kustomization_target_dir = @context.project.appctl.k8s_resources / 'base'
+        kustomization_target_dir = @context.application.k8s_resources / 'base'
       end
       unless kustomization_target_dir.directory?
         logger.fatal [Paint[kustomization_target_dir.to_s, :bold], " does not exist"]
@@ -212,48 +212,48 @@ class Orbital::Commands::Deploy < Orbital::Command
       hydrated_config = @kustomizer.call(kustomization_target_dir)
       logger.success ["built ", Paint["artifact.yaml", :bold], " (", hydrated_config.length.to_s, " bytes)"]
 
-      unless @context.project.appctl.deployment_worktree
+      unless @context.application.deployment_worktree
         self.clone_deployment_repo
       end
 
       logger.step "sync deployment repo"
       run(
         'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags',
-        chdir: @context.project.appctl.deployment_worktree_root.to_s
+        chdir: @context.application.deployment_worktree_root.to_s
       )
 
       logger.step "commit built k8s resources to deployment repo"
 
       dr_checked_out_branch = run(
         'git', 'rev-parse', '--abbrev-ref', 'HEAD',
-        chdir: @context.project.appctl.deployment_worktree.to_s,
+        chdir: @context.application.deployment_worktree.to_s,
         capturing_output: true
       ).strip
 
       unless dr_checked_out_branch == dr_env_branch
         run(
           'git', 'checkout', '--quiet', dr_env_branch,
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
       end
 
       cleanup_for_deployment_repo_env_branch_checkout = defer_cleanup do
         run(
           'git', 'checkout', '--quiet', dr_log_branch,
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
         logger.success ["return deployment worktree to '", Paint[dr_log_branch, :bold], "' branch"]
       end
 
       run(
         'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       cleanup_for_deployment_worktree_dirty = defer_cleanup do
         run(
           'git', 'clean', '-ffdx',
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
         logger.success ["clean deployment worktree"]
       end
@@ -261,24 +261,24 @@ class Orbital::Commands::Deploy < Orbital::Command
       cleanup_for_deployment_env_branch_dangling_commits = defer_cleanup do
         run(
           'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
         logger.success ["reset deployment checkout to '", Paint["upstream/#{dr_env_branch}", :bold], "'"]
       end
 
-      artifact_path = @context.project.appctl.deployment_worktree / 'artifact.yaml'
+      artifact_path = @context.application.deployment_worktree / 'artifact.yaml'
 
       unless artifact_path.read == hydrated_config
         artifact_path.open('w'){ |f| f.write(hydrated_config) }
 
         run(
           'git', 'add', artifact_path.to_s,
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
 
         run(
           'git', 'commit', '-m', 'orbital: generate hydrated kubernetes configuration manifest',
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
       end
 
@@ -286,7 +286,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       dr_env_tag_refs = run(
         'git', 'tag', '--list',
-        chdir: @context.project.appctl.deployment_worktree.to_s,
+        chdir: @context.application.deployment_worktree.to_s,
         capturing_output: true
       )
 
@@ -304,19 +304,19 @@ class Orbital::Commands::Deploy < Orbital::Command
       cleanup_for_deployment_repo_unpushed_env_tag = defer_cleanup do
         run(
           'git', 'tag', '--delete', dr_env_tag,
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
         logger.success ["deleted git tag '", Paint[dr_env_tag, :bold], "'"]
       end
 
       run(
         'git', 'tag', dr_env_tag,
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       run(
         'git', 'checkout', '--quiet', dr_log_branch,
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       cleanup_for_deployment_env_branch_dangling_commits.cancel
@@ -324,18 +324,18 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       run(
         'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       cleanup_for_deployment_log_branch_dangling_commits = defer_cleanup do
         run(
           'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
-          chdir: @context.project.appctl.deployment_worktree.to_s
+          chdir: @context.application.deployment_worktree.to_s
         )
         logger.success ["reset deployment checkout to '", Paint["upstream/#{dr_log_branch}", :bold], "'"]
       end
 
-      envs_path = @context.project.appctl.deployment_worktree / 'environments.yaml'
+      envs_path = @context.application.deployment_worktree / 'environments.yaml'
       envs_path.modify_as_yaml do |docs|
         active_env_part = docs[0]['envs'].find{ |env| env['name'] == @options.env }
         active_env_part['last_update_time'] = deploy_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -343,12 +343,12 @@ class Orbital::Commands::Deploy < Orbital::Command
       end
       run(
         'git', 'add', envs_path.to_s,
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       run(
         'git', 'commit', '-m', "orbital: update environment data for #{@options.env}",
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       logger.step "push deployment-repo commits and tags to upstream"
@@ -357,7 +357,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         "refs/heads/#{dr_log_branch}",
         "refs/heads/#{@options.env}",
         "refs/tags/#{dr_env_tag}",
-        chdir: @context.project.appctl.deployment_worktree.to_s
+        chdir: @context.application.deployment_worktree.to_s
       )
 
       cleanup_for_deployment_log_branch_dangling_commits.cancel
@@ -366,7 +366,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       dr_env_tag_ref = run(
         'git', 'rev-parse', "refs/tags/#{dr_env_tag}",
-        chdir: @context.project.appctl.deployment_worktree.to_s,
+        chdir: @context.application.deployment_worktree.to_s,
         capturing_output: true
       ).strip
 
@@ -400,9 +400,9 @@ class Orbital::Commands::Deploy < Orbital::Command
       reltrack_patch_doc = {
         metadata: {
           annotations: {
-            'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
-            'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
-            'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+            'appctl.gke.io/config-commit-link' => @context.application.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
+            'appctl.gke.io/deployment-commit-link' => @context.application.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
+            'appctl.gke.io/deployment-tag-link' => @context.application.deployment_repo.uri.join("/tree/#{dr_env_tag}")
           }
         },
         spec: {
@@ -427,18 +427,18 @@ class Orbital::Commands::Deploy < Orbital::Command
       #       name: active_env.k8s_app_resource_name,
       #       namespace: active_env.k8s_namespace,
       #       annotations: {
-      #         'appctl.gke.io/config-repo' => @context.project.appctl.app_repo.uri,
-      #         'appctl.gke.io/deployment-repo' => @context.project.appctl.deployment_repo.uri,
-      #         'appctl.gke.io/config-commit-link' => @context.project.appctl.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
-      #         'appctl.gke.io/deployment-all-tags' => @context.project.appctl.deployment_repo.uri.join("/tags"),
-      #         'appctl.gke.io/deployment-commit-link' => @context.project.appctl.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
-      #         'appctl.gke.io/deployment-tag-link' => @context.project.appctl.deployment_repo.uri.join("/tree/#{dr_env_tag}")
+      #         'appctl.gke.io/config-repo' => @context.application.app_repo.uri,
+      #         'appctl.gke.io/deployment-repo' => @context.application.deployment_repo.uri,
+      #         'appctl.gke.io/config-commit-link' => @context.application.app_repo.uri.join("/commit/#{ar_release_tag_ref}"),
+      #         'appctl.gke.io/deployment-all-tags' => @context.application.deployment_repo.uri.join("/tags"),
+      #         'appctl.gke.io/deployment-commit-link' => @context.application.deployment_repo.uri.join("/commit/#{dr_env_tag_ref}"),
+      #         'appctl.gke.io/deployment-tag-link' => @context.application.deployment_repo.uri.join("/tree/#{dr_env_tag}")
       #       }
       #     },
       #     spec: {
       #       sourceRepository: {
       #         type: 'Git',
-      #         url: @context.project.appctl.deployment_repo.uri.join("?branch=#{active_env.name}"),
+      #         url: @context.application.deployment_repo.uri.join("?branch=#{active_env.name}"),
       #         secretRef: {
       #           name: 'git-token'
       #         }
@@ -459,14 +459,14 @@ class Orbital::Commands::Deploy < Orbital::Command
       logger.step ["prepare k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "prepare", @options.env, "--from-tag", @options.tag, "--validate"
       run(
-        'git', 'checkout', @context.project.appctl.deployment_repo.default_branch,
-        chdir: @context.project.appctl.deployment_worktree_root.to_s
+        'git', 'checkout', @context.application.deployment_repo.default_branch,
+        chdir: @context.application.deployment_worktree_root.to_s
       )
 
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
       run "appctl", "apply", @options.env, "--from-tag", @options.tag
     when :github
-      unless @context.project.appctl.deployment_worktree
+      unless @context.application.deployment_worktree
         self.clone_deployment_repo
       end
 
@@ -493,7 +493,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     unless @options.wait
       logger.break(2)
       logger.celebrate [
-        Paint[@context.project.appctl.application_name, :bold],
+        Paint[@context.application.name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed to env '",
@@ -515,7 +515,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     wait_text = [
         "Waiting for application resource '",
-        Paint[@context.project.appctl.application_name, :bold],
+        Paint[@context.application.name, :bold],
         "' in env '",
         Paint[@options.env, :bold],
         "' to match release ",
@@ -535,7 +535,7 @@ class Orbital::Commands::Deploy < Orbital::Command
     when :success
       logger.break(2)
       logger.celebrate [
-        Paint[@context.project.appctl.application_name, :bold],
+        Paint[@context.application.name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " deployed."
@@ -546,7 +546,7 @@ class Orbital::Commands::Deploy < Orbital::Command
       logger.break(2)
       logger.info [
         "Kubernetes resources for ",
-        Paint[@context.project.appctl.application_name, :bold],
+        Paint[@context.application.name, :bold],
         " release ",
         Paint[@options.tag, :bold],
         " have been loaded into the '",
@@ -575,7 +575,7 @@ class Orbital::Commands::Deploy < Orbital::Command
   def ensure_k8s_client_configured_for_active_env!
     return if @k8s_client_configured_for_active_env
 
-    @context.project.appctl.k8s_config_file_populator = lambda do |env|
+    @context.application.k8s_config_file_populator = lambda do |env|
       logger.step ["get k8s cluster credentials for env '", env.name, "'"]
 
       run "gcloud", "container", "clusters", "get-credentials", env.gke_cluster_name,
@@ -583,7 +583,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         "--zone=#{env.gcp_compute_zone}"
     end
 
-    active_env = @context.project.appctl.active_deploy_environment
+    active_env = @context.application.active_deploy_environment
     active_env.k8s_client
 
     @k8s_client_configured_for_active_env = true
@@ -594,14 +594,14 @@ class Orbital::Commands::Deploy < Orbital::Command
 
     logger.step "fast-forward appctl deployment repo"
 
-    Dir.chdir(@context.project.appctl.deployment_worktree_root.to_s) do
+    Dir.chdir(@context.application.deployment_worktree_root.to_s) do
       run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
 
       upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
 
       # move default branch to the end, so it ends up staying checked out
-      upstream_branches -= [@context.project.appctl.deployment_repo.default_branch]
-      upstream_branches += [@context.project.appctl.deployment_repo.default_branch]
+      upstream_branches -= [@context.application.deployment_repo.default_branch]
+      upstream_branches += [@context.application.deployment_repo.default_branch]
 
       upstream_branches.each do |branch|
         run 'git', 'checkout', '--quiet', branch
@@ -611,15 +611,15 @@ class Orbital::Commands::Deploy < Orbital::Command
   end
 
   def ensure_cloned_deployment_repo
-    return false if @context.project.appctl.deployment_worktree
+    return false if @context.application.deployment_worktree
 
     logger.step ["clone appctl deployment repo"]
 
-    run 'git', 'clone', @context.project.appctl.deployment_repo.clone_uri, @context.project.appctl.deployment_worktree_root.to_s
+    run 'git', 'clone', @context.application.deployment_repo.clone_uri, @context.application.deployment_worktree_root.to_s
 
     run(
       'git', 'remote', 'rename', 'origin', 'upstream',
-      chdir: @context.project.appctl.deployment_worktree_root.to_s
+      chdir: @context.application.deployment_worktree_root.to_s
     )
 
     true
