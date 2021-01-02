@@ -133,6 +133,8 @@ class Orbital::Commands::Deploy < Orbital::Command
   private
 
   def do_execute
+    self.ensure_cloned_deployment_repo
+
     active_env = @context.project.appctl.active_deploy_environment
     k8s_releasetrack_prev_transition_time = Time.at(0)
     deploy_start_time = Time.now
@@ -582,10 +584,7 @@ class Orbital::Commands::Deploy < Orbital::Command
   end
 
   def ensure_up_to_date_deployment_repo
-    unless @context.project.appctl.deployment_worktree
-      self.clone_deployment_repo
-      return
-    end
+    return if self.ensure_cloned_deployment_repo
 
     logger.step "fast-forward appctl deployment repo"
 
@@ -605,14 +604,19 @@ class Orbital::Commands::Deploy < Orbital::Command
     end
   end
 
-  def clone_deployment_repo
-    logger.step "clone appctl deployment repo"
+  def ensure_cloned_deployment_repo
+    return false if @context.project.appctl.deployment_worktree
+
+    logger.step ["clone appctl deployment repo"]
 
     run 'git', 'clone', @context.project.appctl.deployment_repo.clone_uri, @context.project.appctl.deployment_worktree_root.to_s
 
-    Dir.chdir(@context.project.appctl.deployment_worktree_root.to_s) do
-      run 'git', 'remote', 'rename', 'origin', 'upstream'
-    end
+    run(
+      'git', 'remote', 'rename', 'origin', 'upstream',
+      chdir: @context.project.appctl.deployment_worktree_root.to_s
+    )
+
+    true
   end
 end
 
