@@ -36,8 +36,12 @@ class Orbital::Context::Project
     end
   end
 
+  def config_dir
+    @root / '.orbital'
+  end
+
   def config_path
-    @root / '.orbital.yaml'
+    self.config_dir / 'project.yaml'
   end
 
   def config
