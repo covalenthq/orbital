@@ -191,7 +191,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         logger.step ["check out release tag '", @options.tag, "'"]
         run('git', 'checkout', '--quiet', ar_release_tag_ref)
 
-        defer_cleanup :app_repo_checkout do
+        cleanup_for_app_repo_checkout = defer_cleanup do
           run "git", "checkout", "--quiet", ar_return_to_ref
           logger.success "return app worktree to previously-checked-out git ref"
         end
@@ -234,7 +234,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         )
       end
 
-      defer_cleanup :deployment_repo_checkout do
+      cleanup_for_deployment_repo_env_branch_checkout = defer_cleanup do
         run(
           'git', 'checkout', '--quiet', dr_log_branch,
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -247,7 +247,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
-      defer_cleanup :deployment_worktree_clean do
+      cleanup_for_deployment_worktree_dirty = defer_cleanup do
         run(
           'git', 'clean', '-ffdx',
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -255,7 +255,7 @@ class Orbital::Commands::Deploy < Orbital::Command
         logger.success ["clean deployment worktree"]
       end
 
-      defer_cleanup :deployment_env_worktree_reset do
+      cleanup_for_deployment_env_branch_dangling_commits = defer_cleanup do
         run(
           'git', 'reset', '--hard', "upstream/#{dr_env_branch}",
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -298,7 +298,7 @@ class Orbital::Commands::Deploy < Orbital::Command
 
       dr_env_tag = "#{dr_env_tag_base_name}.#{dr_env_tag_suffix_seq}"
 
-      defer_cleanup :deployment_repo_env_tag do
+      cleanup_for_deployment_repo_unpushed_env_tag = defer_cleanup do
         run(
           'git', 'tag', '--delete', dr_env_tag,
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -316,15 +316,15 @@ class Orbital::Commands::Deploy < Orbital::Command
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
-      cancel_cleanup :deployment_env_worktree_reset
-      cancel_cleanup :deployment_repo_checkout
+      cleanup_for_deployment_env_branch_dangling_commits.cancel
+      cleanup_for_deployment_repo_env_branch_checkout.cancel
 
       run(
         'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
-      defer_cleanup :deployment_log_worktree_reset do
+      cleanup_for_deployment_log_branch_dangling_commits = defer_cleanup do
         run(
           'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
           chdir: @context.project.appctl.deployment_worktree.to_s
@@ -357,9 +357,9 @@ class Orbital::Commands::Deploy < Orbital::Command
         chdir: @context.project.appctl.deployment_worktree.to_s
       )
 
-      cancel_cleanup :deployment_log_worktree_reset
-      cancel_cleanup :deployment_worktree_clean
-      cancel_cleanup :deployment_repo_env_tag
+      cleanup_for_deployment_log_branch_dangling_commits.cancel
+      cleanup_for_deployment_worktree_dirty.cancel
+      cleanup_for_deployment_repo_unpushed_env_tag.cancel
 
       logger.step ["deploy k8s ", Paint[@options.env, :bold], " release ", Paint[@options.tag, :bold]]
 

@@ -7,6 +7,30 @@ require 'orbital'
 require 'orbital/context'
 
 module Orbital
+  class CleanupThunk
+    def initialize(proc)
+      @proc = proc
+      @cancelled = false
+      @called = false
+    end
+
+    def would_run?
+      not(@called or @cancelled)
+    end
+
+    def cancel
+      return false if @called or @cancelled
+      @cancelled = true
+    end
+
+    def call
+      return false if @cancelled
+      return true if @called
+      @proc.call
+      @called = true
+    end
+  end
+
   class Command
     def initialize(cli, options, ctx = nil)
       options = options.dup
@@ -15,8 +39,7 @@ module Orbital
       @cli = cli
 
       @options = RecursiveOpenStruct.new(options, recurse_over_arrays: true)
-      @deferred_cleanups = {}
-      @deferred_cleanups_order = []
+      @deferred_cleanups = []
     end
 
     def sibling_command(command_klass, **options)
@@ -60,28 +83,22 @@ module Orbital
       result
     end
 
-    def defer_cleanup(cleanup_key, &cleanup_proc)
-      @deferred_cleanups[cleanup_key] = cleanup_proc
-      @deferred_cleanups_order << cleanup_key
-    end
-
-    def cancel_cleanup
-      @deferred_cleanups.delete(cleanup_key)
-      @deferred_cleanups_order.delete(cleanup_key)
+    def defer_cleanup(&cleanup_proc)
+      thunk = CleanupThunk.new(cleanup_proc)
+      @deferred_cleanups << thunk
+      thunk
     end
 
     def execute_deferred_cleanups
-      deferred_procs =
-        @deferred_cleanups_order
-        .reverse
-        .map{ |k| @deferred_cleanups[k] }
-        .filter{ |v| v }
+      active_thunks =
+        @deferred_cleanups.reverse
+        .filter{ |th| th.would_run? }
 
-      unless deferred_procs.empty?
+      unless active_thunks.empty?
         self.logger.step "cleaning up"
       end
 
-      deferred_procs.each(&:call)
+      active_thunks.each(&:call)
     end
 
 
