@@ -63,7 +63,7 @@ class Orbital::Commands::Deploy < Orbital::Command
           logger.success ["have ", Paint["kustomize(1)", :bold]]
         elsif exec_exist? 'kubectl'
           @kustomizer = lambda do |path|
-            run('kubectl', 'kustomize', 'build', path.to_s, capturing_output: true)
+            run('kubectl', 'kustomize', path.to_s, capturing_output: true)
           end
 
           logger.success ["have ", Paint["kubectl(1)", :bold]]
