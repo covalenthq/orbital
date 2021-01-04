@@ -40,6 +40,16 @@ class Orbital::Context::Project
     @root / '.orbital'
   end
 
+  def sealed_secrets_store_path
+    self.config_dir / 'sealed-secrets'
+  end
+
+  def sealed_secrets_store
+    sss_path = self.sealed_secrets_store_path
+    return nil unless sss_path.directory?
+    sss_path
+  end
+
   def config_path
     self.config_dir / 'project.yaml'
   end
@@ -57,6 +67,18 @@ class Orbital::Context::Project
 
   def schema_version
     self.config['schema_version'] || 0
+  end
+
+  def images
+    return @images if @images
+
+    imgs = self.config['images'] || []
+
+    @images =
+      imgs.map do |r|
+        source_path = @root / r['source_path']
+        [r['name'], source_path]
+      end.to_h
   end
 
   def template_paths

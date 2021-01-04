@@ -83,9 +83,16 @@ class Orbital::Commands::Release < Orbital::Command
     @release.from_git_ref = `git rev-parse HEAD`.strip
     logger.success "get branch and/or ref to return to"
 
-    deployment = @context.application.k8s_resource('base/deployment.yaml')
+    @context.project.config
+
+    image_names = @context.project.images.keys
+
+    unless image_names.length == 1
+      logger.fatal "multi-image releases not yet implemented"
+    end
+
     @release.docker_image = OpenStruct.new(
-      name: deployment.spec.template.spec.containers[0].image.split(":")[0]
+      name: image_names.first
     )
     logger.success "get name of Docker image used in k8s deployment config"
 
@@ -100,7 +107,7 @@ class Orbital::Commands::Release < Orbital::Command
     return_target = @release.from_git_branch || @release.from_git_ref
     on_temporary_branch(release_branch_name, return_target) do
       logger.step "burn release metadata into codebase and k8s resources"
-      modified_paths = self.burn_in_release_metadata()
+      modified_paths = self.burn_in_release()
       modified_paths.each do |path|
         run "git", "add", path.expand_path.to_s
       end
@@ -181,10 +188,18 @@ class Orbital::Commands::Release < Orbital::Command
     end
   end
 
-  def burn_in_release_metadata
-    project_template_paths = @context.project.template_paths
+  def burn_in_release
+    [
+      self.burn_in_project_templates,
+      self.burn_in_sealed_secrets,
+      self.burn_in_base_kustomization
+    ].flatten
+  end
 
-    project_template_paths.each do |template_path|
+  def burn_in_project_templates
+    template_paths = @context.project.template_paths
+
+    template_paths.each do |template_path|
       patched_doc =
         template_path.read
         .gsub(/\blatest\b/, @release.tag.name)
@@ -194,6 +209,46 @@ class Orbital::Commands::Release < Orbital::Command
       template_path.open('w'){ |f| f.write(patched_doc) }
     end
 
+    template_paths
+  end
+
+  def burn_in_sealed_secrets
+    sss_dir = @context.project.sealed_secrets_store
+    return [] unless sss_dir
+
+    shared_sealed_secret_docs =
+      sss_dir.children
+      .filter{ |f| f.file? and f.basename.to_s[0] != '.' }
+      .flat_map{ |f| YAML.load_stream(f.read) }
+      .filter{ |doc| doc['kind'] == 'SealedSecret' }
+      .sort_by{ |doc| doc['metadata']['name'] }
+
+    return [] if shared_sealed_secret_docs.empty?
+
+    env_sealed_secrets_paths =
+      (@context.application.k8s_resources / 'envs').children
+      .filter{ |d| d.directory? and d.basename.to_s[0] != '.' }
+      .map{ |d| d / 'sealed-secrets.yaml' }
+      .filter{ |f| f.file? }
+
+    return [] if env_sealed_secrets_paths.empty?
+
+    env_sealed_secrets_paths.each do |env_ss_path|
+      d_env = @context.application.deploy_environments[env_ss_path.parent.basename.to_s.intern]
+
+      env_ss_doc_stream =
+        shared_sealed_secret_docs
+        .map{ |doc| sealed_secret_apply_namespace(d_env.k8s_namespace, doc) }
+        .map{ |doc| doc.to_yaml }
+        .join("")
+
+      env_ss_path.open('w'){ |f| f.write(env_ss_doc_stream) }
+    end
+
+    env_sealed_secrets_paths
+  end
+
+  def burn_in_base_kustomization
     kustomization_path = @context.application.k8s_resources / 'base' / 'kustomization.yaml'
     kustomization_doc = YAML.load(kustomization_path.read)
     kustomization_doc['images'] ||= []
@@ -203,7 +258,13 @@ class Orbital::Commands::Release < Orbital::Command
     })
     kustomization_path.open('w'){ |io| io.write(kustomization_doc.to_yaml) }
 
-    [kustomization_path] + project_template_paths
+    [kustomization_path]
+  end
+
+  def sealed_secret_apply_namespace(ns, doc)
+    doc['metadata']['namespace'] = ns
+    doc['spec']['template']['metadata']['namespace'] = ns
+    doc
   end
 
   def on_temporary_branch(new_branch, prev_ref)
