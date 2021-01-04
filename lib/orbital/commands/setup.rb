@@ -142,17 +142,6 @@
       external_dns.apply(@runners.k8s, prune: true)
     end
 
-    @last_description = "installs a High-Availability Redis instance into the cluster"
-    define_task(Rake::Task, "prod:cluster:redis" => ['cluster:namespaces', 'local:helm-repos']) do
-      @runners.helm.ensure_deployed('r', 'bitnami/redis',
-        namespace: :production,
-        config_map: {
-          'master.resources.requests.memory' => '1Gi',
-          'master.resources.requests.cpu' => '500m'
-        }
-      )
-    end
-
     define_task(Rake::Task, 'cluster:infra-namespace') do
       next if @remote_resources.namespaces.member?('infrastructure')
 
