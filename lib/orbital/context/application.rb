@@ -31,6 +31,12 @@ class Orbital::Context::Application
     @project_root / @config.config_path
   end
 
+  def env_paths
+    (@project_root / @config.delivery_path / 'envs')
+    .children
+    .filter{ |f| f.file? and f.basename.to_s[0] != '.' }
+  end
+
   def k8s_resource(subpath)
     RecursiveOpenStruct.new(YAML.load((self.k8s_resources / subpath).read), recurse_over_arrays: true)
   end
@@ -75,15 +81,16 @@ class Orbital::Context::Application
 
   def deploy_environments
     return @deploy_environments if @deploy_environments
-    return nil unless dwt = self.deployment_worktree
 
-    envs_path = dwt / 'environments.yaml'
-
-    @deploy_environments = YAML.load(envs_path.read)['envs'].map do |env_cfg|
-      env = Orbital::Context::Application::DeployEnvironment.new(env_cfg)
+    envs = self.env_paths.map do |f|
+      env_doc = YAML.load(f.read)
+      env_doc['name'] ||= f.basename.to_s.split('.')[0..-2].join('.')
+      env = Orbital::Context::Application::DeployEnvironment.new(env_doc)
       env.parent_application = self
-      [env.name.intern, env]
-    end.to_h
+      env
+    end
+
+    @deploy_environments = envs.map{ |env| [env.name.intern, env] }.to_h
   end
 
   def select_deploy_environment(env_name)
