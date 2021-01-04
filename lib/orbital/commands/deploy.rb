@@ -61,13 +61,7 @@ class Orbital::Commands::Deploy < Orbital::Command
           end
 
           logger.success ["have ", Paint["kustomize(1)", :bold]]
-        elsif exec_exist? 'kubectl'
-          @kustomizer = lambda do |path|
-            run('kubectl', 'kustomize', path.to_s, capturing_output: true)
-          end
-
-          logger.success ["have ", Paint["kubectl(1)", :bold]]
-        elsif
+        else
           @kustomizer = lambda do |path|
             k = Orbital::Kustomize::KustomizationFile.load(path)
             k.render_stream
