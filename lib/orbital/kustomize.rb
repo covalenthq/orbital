@@ -1,110 +1,256 @@
-require 'pathname'
 require 'yaml'
+require 'lens'
+require 'accessory'
 
-module Orbital; end
-module Orbital::Kustomize; end
-class Orbital::Kustomize::KustomizationFile
-  FILENAME_SPEC = 'kustomization.yaml'
-  DOC_KIND = 'Kustomization'
+require 'orbital/kustomize/pathname_refinements'
 
-  def self.load(target_path)
-    target_path = Pathname.new(target_path.to_s) unless target_path.kind_of?(Pathname)
-    if target_path.file?
-      unless target_path.basename.to_s == FILENAME_SPEC
-        raise ArgumentError, "Explicitly-passed files must be named #{FILENAME_SPEC}: #{target_path}"
+using Orbital::Kustomize::PathnameRefinements
+
+class Orbital::Kustomize::Emitter
+  def input_emitters; []; end
+
+  def input_resources
+    self.input_emitters.flat_map(&:emit)
+  end
+
+  def emit
+    self.input_resources
+  end
+
+  def to_yaml_stream
+    self.emit.map(&:to_yaml).join("")
+  end
+end
+
+class Orbital::Kustomize::FileEmitter < Orbital::Kustomize::Emitter
+  def initialize(source_path)
+    @source_path = source_path
+  end
+
+  def input_emitters
+    return @input_emitters if @input_emitters
+
+    source_docs = YAML.load_stream(@source_path.read)
+
+    @input_emitters = source_docs.map.with_index do |doc, i|
+      unless doc.has_key?('kind')
+        raise ArgumentError, "invalid Kubernetes resource-config document (missing attribute 'kind'): subdocument #{i} in #{target_path}"
       end
-      # ok
-    elsif target_path.directory?
-      target_path = target_path / FILENAME_SPEC
-      raise Errno::ENOENT, target_path.to_s unless target_path.file?
-    else
-      raise Errno::ENOENT, target_path.to_s
+
+      doc_kind = doc['kind']
+
+      doc_klass =
+        begin
+          Orbital::Kustomize.const_get(doc_kind + 'DocumentEmitter')
+        rescue NameError => e
+          Orbital::Kustomize::DocumentEmitter
+        end
+
+      doc_klass.load(doc, source: {path: @source_path, subdocument: i})
     end
+  end
+end
 
-    target_doc = YAML.load(target_path.read)
-
-    unless target_doc['kind'] == DOC_KIND
-      raise ArgumentError, "invalid #{FILENAME_SPEC} file: #{target_path}"
-    end
-
-    self.new(target_path, target_doc)
+class Orbital::Kustomize::DocumentEmitter < Orbital::Kustomize::Emitter
+  def self.load(doc, source:)
+    self.new(doc, source: source)
   end
 
-  def initialize(path, doc)
-    @path = path
+  def initialize(doc, source: nil)
     @doc = doc
+    @source = source
   end
 
-  def directory
-    @path.parent
+  def emit
+    [@doc]
+  end
+end
+
+class Orbital::Kustomize::DirectoryEmitter < Orbital::Kustomize::Emitter
+  def initialize(source_path)
+    @source_path = source_path
   end
 
-  def parents
-    return @parents if @parents
+  KUSTOMIZATION_FILENAME = 'kustomization.yaml'
 
-    @parents = (@doc['bases'] || []).map do |rel_path|
-      self.class.load(self.directory / rel_path)
+  def kustomization_file_path
+    @source_path / KUSTOMIZATION_FILENAME
+  end
+
+  def input_emitters
+    return @input_emitters if @input_emitters
+
+    @input_emitters =
+      if self.kustomization_file_path.file?
+        kf_emitter = Orbital::Kustomize::FileEmitter.new(self.kustomization_file_path)
+        [kf_emitter]
+      else
+        @source_path.all_rc_files_within.flat_map do |rc_path|
+          Orbital::Kustomize::FileEmitter.new(rc_path)
+        end
+      end
+  end
+end
+
+class Orbital::Kustomize::KustomizationDocumentEmitter < Orbital::Kustomize::DocumentEmitter
+  def source_directory
+    @source[:path].parent
+  end
+
+  def input_emitters
+    return @input_emitters if @input_emitters
+
+    pathspecs =
+      (@doc['bases'] || []) +
+      (@doc['resources'] || [])
+
+    @input_emitters = pathspecs.map do |rel_path|
+      abs_path = self.source_directory / rel_path
+
+      unless abs_path.exist?
+        raise Errno::ENOENT, abs_path.to_s
+      end
+
+      if abs_path.file?
+        Orbital::Kustomize::FileEmitter.new(abs_path)
+      elsif abs_path.directory?
+        Orbital::Kustomize::DirectoryEmitter.new(abs_path)
+      else
+        raise Errno::EFTYPE, abs_path.to_s
+      end
     end
   end
 
-  def own_file_resources
-    return @own_file_resources if @own_file_resources
-
-    @own_file_resources = (@doc['resources'] || []).flat_map do |rel_path|
-      abs_path = self.directory / rel_path
-      YAML.load_stream(abs_path.read)
-    end
-  end
-
-  def file_resources
-    return @file_resources if @file_resources
-    (self.parents.map(&:file_resources) + self.own_file_resources).flatten
-  end
-
-  def resource_configs
-    self.file_resources
-  end
-
-
-
-  def own_json_patch_transformers
+  def json_patch_transformers
     ((@doc['patches'] || []) + (@doc['patchesJson6902'] || [])).map do |op_spec|
       Orbital::Kustomize::Json6902PatchOp.create(self, op_spec)
     end
   end
 
-  def json_patch_transformers
-    (self.parents.map(&:json_patch_transformers) + self.own_json_patch_transformers).flatten
-  end
-
-
-  def own_image_transformers
+  def image_transformers
     (@doc['images'] || []).map do |op_spec|
       Orbital::Kustomize::ImagePatchOp.create(op_spec)
     end
   end
 
-  def image_transformers
-    (self.parents.map(&:image_transformers) + self.own_image_transformers).flatten
-  end
-
-  def transformers
-    self.image_transformers + self.json_patch_transformers
-  end
-
-
-  def render_docs
-    self.resource_configs.map do |rc|
-      self.transformers.inject(rc){ |doc, xform| xform.apply(doc) }
+  def namespace_transformers
+    if new_ns = @doc['namespace']
+      [Orbital::Kustomize::NamespacePatchOp.create(new_ns)]
+    else
+      []
     end
   end
 
-  def render_stream
-    self.render_docs.map{ |doc| doc.to_yaml }.join("")
+  def transformers
+    [
+      self.namespace_transformers,
+      self.image_transformers,
+      self.json_patch_transformers,
+    ].flatten
+  end
+
+  def emit
+    self.input_resources.map do |rc|
+      self.transformers.inject(rc){ |doc, xform| xform.apply(doc) }
+    end
   end
 end
 
+
+
+class Orbital::Kustomize::NamespacePatchOp
+  include Accessory
+
+  def self.create(new_ns)
+    self.new(new_ns)
+  end
+
+  def initialize(new_ns)
+    @new_ns = new_ns
+  end
+
+  LENSES_FOR_ALL = [
+    Lens["metadata", "namespace"]
+  ]
+
+  LENSES_FOR_ALL_BLACKLIST_PAT = /^Cluster/
+
+  LENSES_FOR_KIND = {
+    "ClusterRoleBinding" => [
+      Lens["subjects", Access.all, "namespace"]
+    ],
+
+    "RoleBinding" => [
+      Lens["subjects", Access.all, "namespace"]
+    ],
+
+    "SealedSecret" => [
+      Lens["spec", "template", "metadata", "namespace"]
+    ]
+  }
+
+  def apply(rc_doc)
+    rc_kind = rc_doc['kind']
+    use_lenses = []
+
+    unless rc_kind =~ LENSES_FOR_ALL_BLACKLIST_PAT
+      use_lenses += LENSES_FOR_ALL
+    end
+
+    if lenses_for_doc_kind = LENSES_FOR_KIND[rc_kind]
+      use_lenses += lenses_for_doc_kind
+    end
+
+    use_lenses.inject(rc_doc) do |doc, lens|
+      lens.put_in(doc, @new_ns)
+    end
+  end
+end
+
+class Orbital::Kustomize::SecretNamePatchOp
+  include Accessory
+
+  SUFFIX_JOINER = "-"
+
+  def self.create(secret_suffix_map)
+    raise ArgumentError unless secret_suffix_map.kind_of?(Hash)
+    self.new(secret_suffix_map)
+  end
+
+  def initialize(suffixes)
+    @suffixes = suffixes
+  end
+
+  LENSES_FOR_KIND = {
+    "Deployment" => [
+      Lens["spec", "template", "spec", "containers", Access.all, "env", Access.all, "valueFrom", "secretKeyRef", "name"]
+    ],
+
+    "SealedSecret" => [
+      Lens["spec", "template", "metadata", "name"]
+    ]
+  }
+
+  def apply(rc_doc)
+    use_lenses = LENSES_FOR_KIND[rc_doc['kind']]
+    return rc_doc unless use_lenses
+
+    use_lenses.inject(rc_doc) do |doc, lens|
+      lens.update_in(doc) do |orig_name|
+        if @suffixes.has_key?(orig_name)
+          [orig_name, @suffixes[orig_name]].join('-')
+        else
+          orig_name
+        end
+      end
+    end
+  end
+end
+
+
 class Orbital::Kustomize::ImagePatchOp
+  include Accessory
+
   def self.create(op_spec)
     raise ArgumentError, "cannot specify both newTag and digest" if op_spec['newTag'] and op_spec['digest']
 
@@ -123,44 +269,43 @@ class Orbital::Kustomize::ImagePatchOp
     @new_digest = new_digest
   end
 
-  def apply(resource_doc)
-    pos =
-      if template = resource_doc.dig('spec', 'template')
-        template
-      else
-        resource_doc
-      end
+  LENS_BY_KIND = {
+    "Deployment" => Lens["spec", "template", "spec", "containers", Access.all, "image"]
+  }
 
-    pos = pos.dig('spec', 'containers')
-    return resource_doc unless pos
+  def apply(rc_doc)
+    lens = LENS_BY_KIND[rc_doc['kind']]
+    return rc_doc unless lens
 
-    pos.each do |container|
-      image_parts = /^(.+?)([:@])(.+)$/.match(container['image'])
+    lens.update_in(rc_doc) do |image_str|
+      image_parts = /^(.+?)([:@])(.+)$/.match(image_str)
+
       image_parts = if image_parts
         {name: image_parts[1], sigil: image_parts[2], ref: image_parts[3]}
       else
         {name: container['image'], sigil: ':', ref: 'latest'}
       end
 
+      unless image_parts[:name] == @name
+        next(image_str)
+      end
+
       if @new_name
         image_parts[:name] = new_name
       end
+
       if @new_tag
         image_parts[:sigil] = ':'
         image_parts[:ref] = @new_tag
-      end
-      if @new_digest
+      elsif @new_digest
         image_parts[:sigil] = '@'
         image_parts[:ref] = @new_digest
       end
 
-      container['image'] = "#{image_parts[:name]}#{image_parts[:sigil]}#{image_parts[:ref]}"
+      "#{image_parts[:name]}#{image_parts[:sigil]}#{image_parts[:ref]}"
     end
-
-    resource_doc
   end
 end
-
 
 class Orbital::Kustomize::Json6902PatchOp
   def self.create(kustomization_file, op_spec)
