@@ -1,6 +1,9 @@
+require 'json'
 require 'yaml'
-require 'lens'
+require 'digest'
+
 require 'accessory'
+require 'digest/base32'
 
 require 'orbital/kustomize/pathname_refinements'
 
@@ -141,11 +144,16 @@ class Orbital::Kustomize::KustomizationDocumentEmitter < Orbital::Kustomize::Doc
     end
   end
 
+  def secret_name_transformers
+    [Orbital::Kustomize::SecretNamePatchOp.create(self)]
+  end
+
   def transformers
     [
       self.namespace_transformers,
       self.image_transformers,
-      self.json_patch_transformers,
+      self.secret_name_transformers,
+      self.json_patch_transformers
     ].flatten
   end
 
@@ -212,18 +220,51 @@ class Orbital::Kustomize::SecretNamePatchOp
 
   SUFFIX_JOINER = "-"
 
-  def self.create(secret_suffix_map)
-    raise ArgumentError unless secret_suffix_map.kind_of?(Hash)
-    self.new(secret_suffix_map)
+  def self.create(kustomize_doc)
+    raise ArgumentError unless kustomize_doc.kind_of?(Orbital::Kustomize::KustomizationDocumentEmitter)
+    self.new(kustomize_doc)
   end
 
-  def initialize(suffixes)
-    @suffixes = suffixes
+  def initialize(kustomize_doc)
+    @kustomize_doc = kustomize_doc
   end
 
-  LENSES_FOR_KIND = {
+  SECRET_KINDS = Set[
+    'Secret',
+    'SealedSecret'
+  ]
+
+  def suffixes
+    return @suffixes if @suffixes
+
+    secret_docs =
+      @kustomize_doc.input_resources
+      .filter{ |rc| SECRET_KINDS.member?(rc['kind']) }
+
+    @suffixes =
+      secret_docs.map do |rc|
+        rc_kind = rc['kind']
+
+        secret_name = NAME_LENSES_BY_KIND[rc_kind].first.get_in(rc)
+        secret_content = CONTENT_LENSES_BY_KIND[rc_kind].get_in(rc)
+        content_hash_suffix = Digest::SHA256.base32digest(secret_content.to_json, :zbase32)[0, 8]
+
+        [secret_name, content_hash_suffix]
+      end.to_h
+  end
+
+  CONTENT_LENSES_BY_KIND = {
+    "Secret" => Lens["data"],
+    "SealedSecret" => Lens["spec", "encryptedData"]
+  }
+
+  NAME_LENSES_BY_KIND = {
     "Deployment" => [
       Lens["spec", "template", "spec", "containers", Access.all, "env", Access.all, "valueFrom", "secretKeyRef", "name"]
+    ],
+
+    "Secret" => [
+      Lens["metadata", "name"]
     ],
 
     "SealedSecret" => [
@@ -232,15 +273,16 @@ class Orbital::Kustomize::SecretNamePatchOp
   }
 
   def apply(rc_doc)
-    use_lenses = LENSES_FOR_KIND[rc_doc['kind']]
-    return rc_doc unless use_lenses
+    name_lenses = NAME_LENSES_BY_KIND[rc_doc['kind']]
+    return rc_doc unless name_lenses
 
-    use_lenses.inject(rc_doc) do |doc, lens|
+    name_lenses.inject(rc_doc) do |doc, lens|
       lens.update_in(doc) do |orig_name|
-        if @suffixes.has_key?(orig_name)
-          [orig_name, @suffixes[orig_name]].join('-')
+        if self.suffixes.has_key?(orig_name)
+          new_name = [orig_name, self.suffixes[orig_name]].join('-')
+          [:set, new_name]
         else
-          orig_name
+          :keep
         end
       end
     end
@@ -287,7 +329,7 @@ class Orbital::Kustomize::ImagePatchOp
       end
 
       unless image_parts[:name] == @name
-        next(image_str)
+        next(:keep)
       end
 
       if @new_name
@@ -302,7 +344,8 @@ class Orbital::Kustomize::ImagePatchOp
         image_parts[:ref] = @new_digest
       end
 
-      "#{image_parts[:name]}#{image_parts[:sigil]}#{image_parts[:ref]}"
+      new_image_str = "#{image_parts[:name]}#{image_parts[:sigil]}#{image_parts[:ref]}"
+      [:set, new_image_str]
     end
   end
 end
