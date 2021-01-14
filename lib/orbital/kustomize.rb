@@ -416,23 +416,24 @@ class Orbital::Kustomize::TargetSpec
     @match_name = name
   end
 
-  def get_name(resource_doc)
-    resource_doc.dig('spec', 'name')
+  def get_name(rc)
+    rc.dig('spec', 'name')
   end
 
-  def get_namespace(resource_doc)
-    resource_doc.dig('spec', 'namespace') || 'default'
+  def get_namespace(rc)
+    rc.dig('spec', 'namespace') || 'default'
   end
 
-  def match?(resource_doc)
+  def match?(rc)
     if @match_api_group or @match_api_version
-      api_group, api_version = resource_doc['apiVersion'].split('/', 2)
-      return false if @match_api_group && api_group != @match_api_group
-      return false if @match_api_version && api_version != @match_api_version
+      api_group, api_version = (rc['apiVersion'] || '/').split('/', 2)
+      return false if @match_api_group and api_group != @match_api_group
+      return false if @match_api_version and api_version != @match_api_version
     end
-    return false if @match_kind && resource_doc['kind'] != @match_api_kind
-    return false if @match_name && get_name(resource_doc) != @match_name
-    return false if @match_namespace && get_namespace(resource_doc) != @match_namespace
+
+    return false if @match_kind and (rc['kind'] != @match_kind)
+    return false if @match_name and get_name(resource_doc) != @match_name
+    return false if @match_namespace and get_namespace(resource_doc) != @match_namespace
 
     true
   end
