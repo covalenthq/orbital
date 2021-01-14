@@ -356,7 +356,7 @@ class Orbital::Kustomize::Json6902PatchOp
 
     patch_part =
       if op_spec['path']
-        path = kustomization_file.directory / op_spec['path']
+        path = kustomization_file.source_directory / op_spec['path']
         YAML.load(file.read)
       elsif op_spec['patch']
         YAML.load(op_spec['patch'])
