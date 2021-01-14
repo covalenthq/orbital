@@ -383,6 +383,9 @@ class Orbital::Kustomize::Json6902PatchOp
     @patches = patches
   end
 
+  attr_reader :target
+  attr_reader :patches
+
   def apply(resource_doc)
     if @target.match?(resource_doc)
       @patches.inject(resource_doc){ |doc, patch| patch.apply(doc) }
