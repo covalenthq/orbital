@@ -23,13 +23,13 @@ GIT
 PATH
   remote: ../accessory
   specs:
-    accessory (0.1.8)
+    accessory (0.1.9)
 
 PATH
   remote: .
   specs:
     orbital (0.1.0)
-      accessory (~> 0.1.8)
+      accessory (~> 0.1.9)
       activesupport
       k8s-ruby
       paint
