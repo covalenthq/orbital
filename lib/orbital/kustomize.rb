@@ -360,6 +360,8 @@ class Orbital::Kustomize::Json6902PatchOp
         YAML.load(file.read)
       elsif op_spec['patch']
         YAML.load(op_spec['patch'])
+      elsif op_spec['ops']
+        op_spec['ops']
       else
         []
       end
