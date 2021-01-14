@@ -440,15 +440,19 @@ class Orbital::Kustomize::TargetSpec
 end
 
 class Orbital::Kustomize::Json6902Patch
-  def parse_path(path)
-    path[1..-1].split("/").map do |e|
+  def parse_lens(path)
+    lens_parts = path[1..-1].split("/").map do |e|
       e = e.gsub('~1', '/')
-      if e.match?(/^\d+$/)
+      if e == ":all"
+        Accessory::Access.all
+      elsif e.match?(/^\d+$/)
         e.to_i
       else
         e
       end
     end
+
+    Accessory::Lens[*lens_parts]
   end
 end
 
@@ -460,18 +464,20 @@ class Orbital::Kustomize::Json6902Patch::Add < Orbital::Kustomize::Json6902Patch
     )
   end
 
+
   def initialize(path:, value:)
-    @path = parse_path(path)
-    @value = value
+    @lens = parse_lens(path)
+    @new_value = value
   end
 
-  def apply(resource_doc)
-    walk_path, target_key = @path[1..-2], @path[-1]
-    pos = resource_doc.dig(walk_path)
-    return ArgumentError, "invalid path" unless pos
-    return ArgumentError, "resource exists at path" if pos[target_key]
-    pos[target_key] = @value
-    resource_doc
+  def apply(rc)
+    @lens.update_in(rc) do |orig_value|
+      unless orig_value.nil?
+        raise ArgumentError, "cannot add value at #{@lens.inspect} -- value exists at target"
+      end
+
+      [:set, @new_value]
+    end
   end
 end
 
@@ -485,17 +491,18 @@ class Orbital::Kustomize::Json6902Patch::Replace < Orbital::Kustomize::Json6902P
   end
 
   def initialize(path:, value:)
-    @path = parse_path(path)
-    @value = value
+    @lens = parse_lens(path)
+    @new_value = value
   end
 
-  def apply(resource_doc)
-    walk_path, target_key = @path[1..-2], @path[-1]
-    pos = resource_doc.dig(walk_path)
-    return ArgumentError, "invalid path" unless pos
-    return ArgumentError, "resource does not exist at path" unless pos[target_key]
-    pos[target_key] = @value
-    resource_doc
+  def apply(rc)
+    @lens.update_in(rc) do |orig_value|
+      if orig_value.nil?
+        raise ArgumentError, "cannot set value at #{@lens.inspect} -- target does not exist"
+      end
+
+      [:set, @new_value]
+    end
   end
 end
 
@@ -507,18 +514,11 @@ class Orbital::Kustomize::Json6902Patch::Remove < Orbital::Kustomize::Json6902Pa
   end
 
   def initialize(path:)
-    @path = parse_path(path)
+    @lens = parse_lens(path)
   end
 
-  def apply(resource_doc)
-    walk_path, target_key = @path[1..-2], @path[-1]
-    pos = resource_doc.dig(walk_path)
-    return ArgumentError, "invalid path" unless pos
-    if pos.kind_of?(Array)
-      pos.delete_at(target_key)
-    else
-      pos.delete(target_key)
-    end
-    resource_doc
+  def apply(rc0)
+    _, rc1 = @lens.pop_in(rc0)
+    rc1
   end
 end
