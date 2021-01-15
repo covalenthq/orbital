@@ -143,6 +143,12 @@ class Orbital::Context
     @mkcert_client = MkCert.new(certs_store)
   end
 
+  def kustomize_session
+    return @kustomize_session if @kustomize_session
+    require 'orbital/context/kustomize_session'
+    @kustomize_session = Orbital::Context::KustomizeSession.new(self)
+  end
+
   def inspect
     "#<Orbital::Context>"
   end

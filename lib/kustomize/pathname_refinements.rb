@@ -1,10 +1,9 @@
 require 'pathname'
 require 'yaml'
 
-module Orbital; end
-module Orbital::Kustomize; end
+module Kustomize; end
 
-module Orbital::Kustomize::PathnameRefinements
+module Kustomize::PathnameRefinements
   RC_EXT_PAT = /\.(yaml|yml)$/i
   KUSTOMIZATION_FILENAME = 'kustomization.yaml'
   KUSTOMIZATION_FILENAME_PAT = /^kustomization\.(yaml|yml)$/i
