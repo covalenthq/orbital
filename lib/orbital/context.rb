@@ -99,6 +99,16 @@ class Orbital::Context
     proj.application!
   end
 
+  def deploy_environment
+    return nil unless app = self.application
+    app.active_deploy_environment
+  end
+
+  def deploy_environment!
+    app = self.application!
+    app.active_deploy_environment!
+  end
+
   def validate(validation_name)
     return true if @validations_done.member?(validation_name)
     yield

@@ -103,6 +103,24 @@ class Orbital::Context::Application
     denvs[@active_deploy_environment_name]
   end
 
+  def active_deploy_environment!
+    denvs = self.deploy_environments
+
+    unless denvs
+      raise Orbital::CommandValidationError.new("active application must be configured with deploy environments")
+    end
+
+    unless @active_deploy_environment_name
+      raise Orbital::CommandValidationError.new("a deploy environment must be selected")
+    end
+
+    unless denvs.has_key?(@active_deploy_environment_name)
+      raise Orbital::CommandValidationError.new("the selected deploy environment must exist")
+    end
+
+    denvs[@active_deploy_environment_name]
+  end
+
   def inspect
     "#<Orbital/App #{@config.application_name}>"
   end
