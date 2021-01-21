@@ -6,6 +6,7 @@ require 'orbital'
 
 class Orbital::CommandRouter < Thor; end
 class Orbital::CLI < Orbital::CommandRouter; end
+class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter; end
 class Orbital::CLI::SetupSubcommand < Orbital::CommandRouter; end
 class Orbital::CLI::LocalSetupSubcommand < Orbital::CommandRouter; end
 class Orbital::CLI::ClusterSetupSubcommand < Orbital::CommandRouter; end
@@ -54,6 +55,7 @@ class Orbital::CLI < Orbital::CommandRouter
 
   desc 'console', 'Start a REPL with context available', hide: true
   def console(*)
+    return invoke(:help, [:console]) if options[:help]
     require 'orbital/commands/console'
     Orbital::Commands::Console.new(self, options).execute
   end
@@ -75,13 +77,10 @@ class Orbital::CLI < Orbital::CommandRouter
 
   desc 'update', 'Update the Orbital SDK'
   def update(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:update]) if options[:help]
     require 'orbital/commands/update'
     Orbital::Commands::Update.new(self, options).execute
   end
-
-  desc 'setup', 'Run dev-toolchain and k8s-cluster setup workflows'
-  subcommand 'setup', Orbital::CLI::SetupSubcommand
 
   desc 'release', 'Burn a tagged release commit, and build an image from it'
   method_option :imagebuilder, aliases: '-i', type: :string, banner: 'STRATEGY',
@@ -95,7 +94,7 @@ class Orbital::CLI < Orbital::CommandRouter
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
   def release(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:release]) if options[:help]
     require 'orbital/commands/release'
     Orbital::Commands::Release.new(self, options).execute
   end
@@ -111,9 +110,56 @@ class Orbital::CLI < Orbital::CommandRouter
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
   def deploy(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:deploy]) if options[:help]
     require 'orbital/commands/deploy'
     Orbital::Commands::Deploy.new(self, options).execute
+  end
+
+  desc 'secrets', 'Manage project secrets'
+  subcommand 'secrets', Orbital::CLI::SecretsSubcommand
+
+  desc 'setup', 'Run dev-toolchain and k8s-cluster setup workflows'
+  subcommand 'setup', Orbital::CLI::SetupSubcommand
+end
+
+class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
+  def self.subcommand_prefix; 'secrets'; end
+
+  default_task 'list'
+
+  desc 'list', 'Examine managed secrets'
+  def list(*)
+    return invoke(:help, [:secrets, :list]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::List.new(self, options).execute
+  end
+
+  desc 'set', 'Create or update managed secrets'
+  def set(*)
+    return invoke(:help, [:secrets, :set]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::Set.new(self, options).execute
+  end
+
+  desc 'delete', 'Remove managed secrets'
+  def delete(*)
+    return invoke(:help, [:secrets, :delete]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::Delete.new(self, options).execute
+  end
+
+  desc 'mark-compromised', 'Mark managed secrets as compromised'
+  def mark_compromised(*)
+    return invoke(:help, [:secrets, :mark_compromised]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::MarkCompromised.new(self, options).execute
+  end
+
+  desc 'reseal', 'Re-seal managed secrets with active cluster sealing keys'
+  def reseal(*)
+    return invoke(:help, [:secrets, :reseal]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::Reseal.new(self, options).execute
   end
 end
 
@@ -136,21 +182,21 @@ class Orbital::CLI::LocalSetupSubcommand < Orbital::CommandRouter
 
   desc 'ca-cert', 'Create and install a local trusted Certificate Authority'
   def ca_cert(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:setup, :local, :ca_cert]) if options[:help]
     require 'orbital/setup_tasks/local/ca_cert'
     Orbital::SetupTasks::Local::InstallCACert.new(self, options).execute_tree
   end
 
   desc 'dns-proxy', 'Install a proxy forwarding to an in-cluster DNS resolver'
   def dns_proxy(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:setup, :local, :dns_proxy]) if options[:help]
     require 'orbital/setup_tasks/local/dns_proxy'
     Orbital::SetupTasks::Local::InstallDNSProxy.new(self, options).execute_tree
   end
 
   desc 'helm-repos', 'Register and sync required Helm repositories'
   def helm_repos(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:setup, :local, :helm_repos]) if options[:help]
     require 'orbital/setup_tasks/local/helm_repos'
     Orbital::SetupTasks::Local::SyncHelmRepos.new(self, options).execute_tree
   end
@@ -161,14 +207,14 @@ class Orbital::CLI::ClusterSetupSubcommand < Orbital::CommandRouter
 
   desc 'namespaces', 'Register core k8s namespaces'
   def namespaces(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:cluster, :setup, :namespaces]) if options[:help]
     require 'orbital/setup_tasks/cluster/namespaces'
     Orbital::SetupTasks::Cluster::CreateNamespaces.new(self, options).execute_tree
   end
 
   desc 'ingress-controller', 'Install Nginx + cert issuers into the cluster'
   def ingress_controller(*)
-    return invoke(:help, [:trigger]) if options[:help]
+    return invoke(:help, [:cluster, :setup, :ingress_controller]) if options[:help]
     require 'orbital/setup_tasks/cluster/ingress_controller'
     Orbital::SetupTasks::Cluster::InstallIngressController.new(self, options).execute_tree
   end
