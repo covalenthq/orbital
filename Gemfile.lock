@@ -23,14 +23,30 @@ GIT
 PATH
   remote: ../accessory
   specs:
-    accessory (0.1.9)
+    accessory (0.1.10)
+
+PATH
+  remote: ../kubesealr
+  specs:
+    kubesealr (0.1.1)
+      k8s-ruby
+      openssl-oaep
+
+PATH
+  remote: ../kustomizer
+  specs:
+    kustomizer (0.1.2)
+      accessory (~> 0.1.9)
+      base32-multi
 
 PATH
   remote: .
   specs:
     orbital (0.1.0)
       activesupport
+      base32-multi (~> 0.1.0)
       k8s-ruby
+      kubesealr (~> 0.1.0)
       kustomizer (~> 0.1.1)
       paint
       recursive-open-struct (~> 1.0, >= 1.0.1)
@@ -40,6 +56,7 @@ PATH
       tty-link (~> 0.1.1)
       tty-platform (~> 0.3.0)
       tty-prompt (~> 0.23)
+      tty-table (~> 0.12.0)
       tty-which (~> 0.4.2)
 
 GEM
@@ -87,12 +104,10 @@ GEM
     ice_nine (0.11.2)
     jsonpath (1.1.0)
       multi_json
-    kustomizer (0.1.1)
-      accessory (~> 0.1.9)
-      base32-multi
     method_source (1.0.0)
     minitest (5.14.3)
     multi_json (1.15.0)
+    openssl-oaep (0.1.0)
     paint (2.2.1)
     parslet (1.8.2)
     pastel (0.8.0)
@@ -114,6 +129,11 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.10.0)
     rspec-support (3.10.1)
+    strings (0.2.0)
+      strings-ansi (~> 0.2)
+      unicode-display_width (~> 1.5)
+      unicode_utils (~> 1.4)
+    strings-ansi (0.2.0)
     thor (1.0.1)
     toml (0.2.0)
       parslet (~> 1.8.0)
@@ -131,9 +151,15 @@ GEM
       tty-screen (~> 0.8)
       wisper (~> 2.0)
     tty-screen (0.8.1)
+    tty-table (0.12.0)
+      pastel (~> 0.8)
+      strings (~> 0.2.0)
+      tty-screen (~> 0.8)
     tty-which (0.4.2)
     tzinfo (2.0.4)
       concurrent-ruby (~> 1.0)
+    unicode-display_width (1.7.0)
+    unicode_utils (1.4.0)
     wisper (2.0.1)
     yajl-ruby (1.4.1)
     yaml-safe_load_stream2 (0.1.1)
@@ -145,6 +171,8 @@ PLATFORMS
 DEPENDENCIES
   accessory!
   k8s-ruby!
+  kubesealr!
+  kustomizer!
   orbital!
   pry (~> 0.13.1)
   rake (~> 13.0)
@@ -155,4 +183,4 @@ RUBY VERSION
    ruby 3.0.0p0
 
 BUNDLED WITH
-   2.2.5
+   2.2.6

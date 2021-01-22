@@ -29,6 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'tty-which', '~> 0.4.2'
   spec.add_runtime_dependency 'tty-prompt', '~> 0.23'
   spec.add_runtime_dependency 'tty-platform', '~> 0.3.0'
+  spec.add_runtime_dependency 'tty-table', '~> 0.12.0'
   spec.add_runtime_dependency 'thor', '~> 1.0.1'
   spec.add_runtime_dependency 'activesupport'
   spec.add_runtime_dependency 'k8s-ruby'
@@ -36,6 +37,8 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'paint'
   spec.add_runtime_dependency 'recursive-open-struct', '~> 1.0', '>= 1.0.1'
   spec.add_runtime_dependency 'kustomizer', '~> 0.1.1'
+  spec.add_runtime_dependency 'kubesealr', '~> 0.1.0'
+  spec.add_runtime_dependency 'base32-multi', '~> 0.1.0'
   # spec.add_runtime_dependency 'rugged', '~> 1.1.0'
 
   spec.add_development_dependency 'rake', '~> 13.0'

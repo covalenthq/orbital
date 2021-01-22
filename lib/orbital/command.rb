@@ -122,14 +122,19 @@ module Orbital
       TTY::Link.link_to(text, uri)
     end
 
-    def pager(**options)
+    def pager(...)
       require 'tty-pager'
-      TTY::Pager.new(options)
+      TTY::Pager.new(...)
     end
 
-    def prompt(**options)
+    def prompt(...)
       require 'tty-prompt'
-      TTY::Prompt.new(options)
+      TTY::Prompt.new(...)
+    end
+
+    def table(...)
+      require 'tty-table'
+      TTY::Table.new(...)
     end
 
     def screen
@@ -137,14 +142,14 @@ module Orbital
       TTY::Screen
     end
 
-    def which(*args)
+    def which(...)
       require 'tty-which'
-      TTY::Which.which(*args)
+      TTY::Which.which(...)
     end
 
-    def exec_exist?(*args)
+    def exec_exist?(...)
       require 'tty-which'
-      TTY::Which.exist?(*args)
+      TTY::Which.exist?(...)
     end
 
     def exec_exist!(cmd_name, install_doc)

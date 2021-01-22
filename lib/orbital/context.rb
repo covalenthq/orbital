@@ -156,7 +156,9 @@ class Orbital::Context
   def kustomize_session
     return @kustomize_session if @kustomize_session
     require 'orbital/context/kustomize_session'
-    @kustomize_session = Orbital::Context::KustomizeSession.new(self)
+    sess = Orbital::Context::KustomizeSession.new
+    sess.orbital_context = self
+    @kustomize_session = sess
   end
 
   def inspect

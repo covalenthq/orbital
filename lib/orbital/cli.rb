@@ -125,15 +125,39 @@ end
 class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
   def self.subcommand_prefix; 'secrets'; end
 
+  class_option :env, aliases: '-e', type: :string, default: 'staging',
+                    desc: "appctl(1) environment to target."
+
   default_task 'list'
 
-  desc 'list', 'Examine managed secrets'
+  desc 'list', 'List managed secrets'
   def list(*)
     return invoke(:help, [:secrets, :list]) if options[:help]
     require 'orbital/commands/secrets'
     Orbital::Commands::Secrets::List.new(self, options).execute
   end
 
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Secret to describe."
+  desc 'describe', 'Describe a managed secret'
+  def describe(*)
+    return invoke(:help, [:secrets, :describe]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::Describe.new(self, options).execute
+  end
+
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Name of secret to create/update."
+  method_option :key, aliases: '-k', type: :string, required: true,
+                desc: "Key within secret to set."
+  method_option :value, aliases: '-v', type: :string,
+                desc: "Value to set. If unset, value will be read from stdin."
+  method_option :type, aliases: '-t', type: :string,
+                desc: "Content-type of value."
+  method_option :mask_fields, aliases: '-m', type: :string,
+                desc: "Fields to mask out in preview."
+  method_option :seal, aliases: '-s', type: :boolean,
+                desc: "Whether to seal the new value"
   desc 'set', 'Create or update managed secrets'
   def set(*)
     return invoke(:help, [:secrets, :set]) if options[:help]
@@ -141,6 +165,8 @@ class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
     Orbital::Commands::Secrets::Set.new(self, options).execute
   end
 
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Name of secret to delete."
   desc 'delete', 'Remove managed secrets'
   def delete(*)
     return invoke(:help, [:secrets, :delete]) if options[:help]
@@ -148,6 +174,10 @@ class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
     Orbital::Commands::Secrets::Delete.new(self, options).execute
   end
 
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Name of secret to mark."
+  method_option :key, aliases: '-k', type: :string,
+                desc: "Key within secret to mark."
   desc 'mark-compromised', 'Mark managed secrets as compromised'
   def mark_compromised(*)
     return invoke(:help, [:secrets, :mark_compromised]) if options[:help]
@@ -155,11 +185,28 @@ class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
     Orbital::Commands::Secrets::MarkCompromised.new(self, options).execute
   end
 
-  desc 'reseal', 'Re-seal managed secrets with active cluster sealing keys'
-  def reseal(*)
-    return invoke(:help, [:secrets, :reseal]) if options[:help]
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Name of secret to seal."
+  method_option :key, aliases: '-k', type: :string,
+                desc: "Key within secret to seal."
+  method_option :reseal, aliases: '-r', type: :boolean, default: false,
+                       desc: "Re-seal if already sealed."
+  desc 'seal', 'Seal or reseal managed secrets with active cluster sealing key'
+  def seal(*)
+    return invoke(:help, [:secrets, :seal]) if options[:help]
     require 'orbital/commands/secrets'
-    Orbital::Commands::Secrets::Reseal.new(self, options).execute
+    Orbital::Commands::Secrets::Seal.new(self, options).execute
+  end
+
+  method_option :name, aliases: '-n', type: :string, required: true,
+                desc: "Name of secret to unseal."
+  method_option :key, aliases: '-k', type: :string,
+                desc: "Key within secret to unseal."
+  desc 'unseal', 'Attempt to unseal managed secrets with accessible cluster sealing keys'
+  def unseal(*)
+    return invoke(:help, [:secrets, :unseal]) if options[:help]
+    require 'orbital/commands/secrets'
+    Orbital::Commands::Secrets::Unseal.new(self, options).execute
   end
 end
 

@@ -40,14 +40,24 @@ class Orbital::Context::Project
     @root / '.orbital'
   end
 
-  def sealed_secrets_store_path
-    self.config_dir / 'sealed-secrets'
+  def managed_secrets_store_path
+    self.config_dir / 'managed-secrets'
   end
 
-  def sealed_secrets_store
-    sss_path = self.sealed_secrets_store_path
-    return nil unless sss_path.directory?
-    sss_path
+  def secret_manager
+    return @secret_manager if @secret_manager
+    require 'orbital/secret_manager'
+
+    sealer_from_context = lambda do
+      de = self.parent_context.deploy_environment!
+      de.kubeseal_client
+    end
+
+    @secret_manager =
+      Orbital::SecretManager.new(
+        store_path: self.managed_secrets_store_path,
+        get_sealer_fn: sealer_from_context
+      )
   end
 
   def config_path

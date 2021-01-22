@@ -82,10 +82,12 @@ class Orbital::Context::Application
   def deploy_environments
     return @deploy_environments if @deploy_environments
 
+    require 'orbital/context/deploy_environment'
+
     envs = self.env_paths.map do |f|
       env_doc = YAML.load(f.read)
       env_doc['name'] ||= f.basename.to_s.split('.')[0..-2].join('.')
-      env = Orbital::Context::Application::DeployEnvironment.new(env_doc)
+      env = Orbital::Context::DeployEnvironment.detect(env_doc)
       env.parent_application = self
       env
     end
@@ -123,78 +125,5 @@ class Orbital::Context::Application
 
   def inspect
     "#<Orbital/App #{@config.application_name}>"
-  end
-end
-
-class Orbital::Context::Application::DeployEnvironment
-  def initialize(config)
-    @config = config
-  end
-
-  attr_accessor :parent_application
-
-  def name; @config['name']; end
-
-  def active?
-    @parent_application.active_deploy_environment.equal?(self)
-  end
-
-  def gcp_project; @config['project']; end
-  def gcp_compute_zone; @config['compute']['zone']; end
-  def gke_cluster_name; @config['cluster_name']; end
-
-  def k8s_namespace; @config['namespace']; end
-  def k8s_app_resource_name; @parent_application.name; end
-
-  def gke_app_dashboard_uri
-    URI("https://console.cloud.google.com/kubernetes/application/#{self.gcp_compute_zone}/#{self.gke_cluster_name}/#{self.k8s_namespace}/#{self.k8s_app_resource_name}?project=#{self.gcp_project}")
-  end
-
-  def kubectl_context_name
-    "gke_#{self.gcp_project}_#{self.gcp_compute_zone}_#{self.gke_cluster_name}"
-  end
-
-  def kubectl_config
-    return @kubectl_config if @kubectl_config
-
-    @kubectl_config =
-      begin
-        self.try_building_kubectl_config!
-      rescue => e
-        if populator = @parent_application.k8s_config_file_populator
-          populator.call(self)
-          self.try_building_kubectl_config!
-        else
-          raise
-        end
-      end
-  end
-
-  def try_building_kubectl_config!
-    cfg = @parent_application.parent_project.parent_context.global_k8s_config
-    expected_ctx_name = self.kubectl_context_name
-    raise KeyError unless cfg.contexts.find{ |ctx| ctx.name == expected_ctx_name }
-    cfg.attributes['current-context'] = expected_ctx_name
-    cfg
-  end
-
-  def k8s_client
-    return @k8s_client if @k8s_client
-    require 'k8s-ruby'
-    @k8s_client = K8s::Client.config(self.kubectl_config)
-    @k8s_client.apis(prefetch_resources: true)
-    @k8s_client
-  end
-
-  def k8s_resources
-    return @k8s_resources if @k8s_resources
-    require 'orbital/context/k8s_known_resources'
-    @k8s_resources = Orbital::Context::K8sKnownResources.new(self.k8s_client)
-    @k8s_resources.parent_deploy_environment = self
-    @k8s_resources
-  end
-
-  def inspect
-    "#<Orbital/DeployEnvironment name=#{self.name.inspect} active=#{self.active?}>"
   end
 end
