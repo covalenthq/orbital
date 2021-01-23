@@ -191,7 +191,6 @@ class Orbital::Commands::Release < Orbital::Command
   def burn_in_release
     [
       self.burn_in_project_templates,
-      self.burn_in_sealed_secrets,
       self.burn_in_base_kustomization
     ].flatten
   end
@@ -212,50 +211,17 @@ class Orbital::Commands::Release < Orbital::Command
     template_paths
   end
 
-  def burn_in_sealed_secrets
-    sss_dir = @context.project.sealed_secrets_store
-    return [] unless sss_dir
-
-    shared_sealed_secret_docs =
-      sss_dir.children
-      .filter{ |f| f.file? and f.basename.to_s[0] != '.' }
-      .flat_map{ |f| YAML.load_stream(f.read) }
-      .filter{ |doc| doc['kind'] == 'SealedSecret' }
-      .sort_by{ |doc| doc['metadata']['name'] }
-
-    return [] if shared_sealed_secret_docs.empty?
-
-    env_sealed_secrets_paths =
-      (@context.application.k8s_resources / 'envs').children
-      .filter{ |d| d.directory? and d.basename.to_s[0] != '.' }
-      .map{ |d| d / 'sealed-secrets.yaml' }
-      .filter{ |f| f.file? }
-
-    return [] if env_sealed_secrets_paths.empty?
-
-    env_sealed_secrets_paths.each do |env_ss_path|
-      d_env = @context.application.deploy_environments[env_ss_path.parent.basename.to_s.intern]
-
-      env_ss_doc_stream =
-        shared_sealed_secret_docs
-        .map{ |doc| sealed_secret_apply_namespace(d_env.k8s_namespace, doc) }
-        .map{ |doc| doc.to_yaml }
-        .join("")
-
-      env_ss_path.open('w'){ |f| f.write(env_ss_doc_stream) }
-    end
-
-    env_sealed_secrets_paths
-  end
-
   def burn_in_base_kustomization
     kustomization_path = @context.application.k8s_resources / 'base' / 'kustomization.yaml'
     kustomization_doc = YAML.load(kustomization_path.read)
     kustomization_doc['images'] ||= []
-    kustomization_doc['images'].push({
-      "name" => @release.docker_image.name,
-      "newTag" => @release.tag.name
-    })
+    kustomization_doc['images'].tap do |images|
+      images.delete_if{ |r| r['name'] == @release.docker_image.name }
+      images.push({
+        "name" => @release.docker_image.name,
+        "newTag" => @release.tag.name
+      })
+    end
     kustomization_path.open('w'){ |io| io.write(kustomization_doc.to_yaml) }
 
     [kustomization_path]
