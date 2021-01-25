@@ -56,7 +56,7 @@ class Orbital::KustomizePlugins::ManagedSecretGenerator < Kustomize::GeneratorPl
   def build_plain_secret_rc(sec)
     armored_data_parts = sec.parts.values.map do |part|
       v = part.get_plain_value!
-      [part.key, Base64.encode64(v)]
+      [part.key, Base64.strict_encode64(v)]
     end.to_h
 
     {

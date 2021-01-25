@@ -35,6 +35,16 @@ class Orbital::Context::DeployEnvironment
   def k8s_namespace; @config['namespace']; end
   def k8s_app_resource_name; @parent_application.name; end
 
+  def kustomization_dir
+    return @kustomization_dir if @kustomization_dir
+
+    target = @parent_application.k8s_resources / 'envs' / self.name
+    unless target.directory?
+      target = @parent_application.k8s_resources / 'base'
+    end
+    @kustomization_dir = target
+  end
+
   def dashboard_uri
     nil
   end

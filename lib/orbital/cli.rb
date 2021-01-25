@@ -82,6 +82,15 @@ class Orbital::CLI < Orbital::CommandRouter
     Orbital::Commands::Update.new(self, options).execute
   end
 
+  desc 'kustomize', 'Emit the k8s resource-configs that would be used in release'
+  method_option :env, aliases: '-e', type: :string, default: "staging",
+                      desc: "appctl(1) environment to target."
+  def kustomize(*)
+    return invoke(:help, [:kustomize]) if options[:help]
+    require 'orbital/commands/kustomize'
+    Orbital::Commands::Kustomize.new(self, options).execute
+  end
+
   desc 'release', 'Burn a tagged release commit, and build an image from it'
   method_option :imagebuilder, aliases: '-i', type: :string, banner: 'STRATEGY',
                                enum: ['docker', 'github', 'cloudbuild', 'gradle'],

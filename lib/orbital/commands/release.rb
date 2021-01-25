@@ -3,7 +3,11 @@
 require 'ostruct'
 require 'yaml'
 
+require 'kustomize'
+
 require 'orbital/command'
+require 'orbital/deployment_repo_helpers'
+require 'orbital/ext/core/pathname_modify_as_yaml'
 
 module Orbital; end
 module Orbital::Commands; end
@@ -14,6 +18,8 @@ class Orbital::Commands::Release < Orbital::Command
       @options.imagebuilder = @options.imagebuilder.intern
     end
   end
+
+  include Orbital::DeploymentRepoHelpers
 
   def validate_environment!
     return if @context_validated
@@ -115,6 +121,10 @@ class Orbital::Commands::Release < Orbital::Command
         run "git", "push", "origin", @release.tag.name
         @release.tag.state = :pushed
       end
+
+      with_deployment_repo do
+        publish_to_deployment_repo!
+      end
     end
 
     if deploy_cmd
@@ -123,11 +133,163 @@ class Orbital::Commands::Release < Orbital::Command
     end
   end
 
+  private
+  def publish_to_deployment_repo!
+    publish_start_time = Time.now
+
+    logger.step "examine deployment repo state"
+    dr_log_branch = @context.application.deployment_repo.default_branch
+
+    ar_release_tag_ref = run(
+      'git', 'rev-parse', "refs/tags/#{@release.tag.name}",
+      capturing_output: true
+    ).strip
+
+    dr_env_tag_refs = run(
+      'git', 'tag', '--list',
+      chdir: @context.application.deployment_worktree.to_s,
+      capturing_output: true
+    )
+
+    dr_push_refs = []
+    dr_push_and_track_refs = []
+
+    @context.application.deploy_environments.each do |_, deploy_env|
+      dr_env_branch = deploy_env.name.to_s
+
+      logger.step ["publish k8s resource-config for env '", Paint[deploy_env.name.to_s, :bold], "'"]
+
+      unless deploy_env.kustomization_dir.directory?
+        logger.fatal ["kustomization directory for env '", Paint[deploy_env.name.to_s, :bold], "' does not exist"]
+      end
+
+      kustomize_emitter = Kustomize.load(deploy_env.kustomization_dir, session: @context.kustomize_session)
+
+      hydrated_config = kustomize_emitter.to_yaml_stream
+
+      logger.success ["built ", Paint["artifact.yaml", :bold], " (", hydrated_config.length.to_s, " bytes)"]
+
+      dr_checked_out_branch = run(
+        'git', 'rev-parse', '--abbrev-ref', 'HEAD',
+        chdir: @context.application.deployment_worktree.to_s,
+        capturing_output: true
+      ).strip
+
+      run(
+        'git', 'show-ref', '--verify', '--quiet', "refs/remotes/upstream/#{dr_env_branch}",
+        chdir: @context.application.deployment_worktree.to_s,
+        capturing_output: true,
+        fail_ok: true
+      )
+      dr_branch_upstream_exists = $?.success?
+
+      if dr_branch_upstream_exists
+        run(
+          'git', 'checkout', '--quiet', '-B', dr_env_branch, "upstream/#{dr_env_branch}",
+          chdir: @context.application.deployment_worktree.to_s
+        )
+        dr_push_refs << "refs/heads/#{dr_env_branch}"
+      else
+        run(
+          'git', 'checkout', '--quiet', '--orphan', dr_env_branch,
+          chdir: @context.application.deployment_worktree.to_s
+        )
+        dr_push_and_track_refs << "refs/heads/#{dr_env_branch}"
+      end
+
+      artifact_path = @context.application.deployment_worktree / 'artifact.yaml'
+
+      unless artifact_path.read == hydrated_config
+        artifact_path.open('w'){ |f| f.write(hydrated_config) }
+
+        run(
+          'git', 'add', artifact_path.to_s,
+          chdir: @context.application.deployment_worktree.to_s
+        )
+
+        run(
+          'git', 'commit', '-m', 'orbital: generate hydrated kubernetes configuration manifest',
+          chdir: @context.application.deployment_worktree.to_s
+        )
+      end
+
+      dr_env_tag_base_name = "#{@release.tag.name}-#{deploy_env.name}-#{ar_release_tag_ref[0, 7]}"
+
+      dr_env_tags_max_suffix_seq =
+        dr_env_tag_refs.chomp.split("\n")
+        .filter{ |ln| ln.start_with?(dr_env_tag_base_name) }
+        .map{ |ln| ln.split('.').last.to_i }
+        .max
+
+      dr_env_tag_suffix_seq =
+        dr_env_tags_max_suffix_seq ? (dr_env_tags_max_suffix_seq + 1) : 0
+
+      dr_env_tag = "#{dr_env_tag_base_name}.#{dr_env_tag_suffix_seq}"
+
+      run(
+        'git', 'tag', dr_env_tag,
+        chdir: @context.application.deployment_worktree.to_s
+      )
+
+      dr_push_refs << "refs/tags/#{dr_env_tag}"
+    end
+
+    logger.step "update deployment log"
+
+    run(
+      'git', 'checkout', '--quiet', dr_log_branch,
+      chdir: @context.application.deployment_worktree.to_s
+    )
+
+    run(
+      'git', 'reset', '--hard', "upstream/#{dr_log_branch}",
+      chdir: @context.application.deployment_worktree.to_s
+    )
+
+    envs_path = @context.application.deployment_worktree / 'environments.yaml'
+    envs_path.modify_as_yaml do |docs|
+      docs[0]['envs'].each do |env_doc|
+        env_doc['last_update_time'] = publish_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+      end
+
+      docs
+    end
+    run(
+      'git', 'add', envs_path.to_s,
+      chdir: @context.application.deployment_worktree.to_s
+    )
+
+    env_names = @context.application.deploy_environments.keys.map(&:to_s).join(', ')
+    run(
+      'git', 'commit', '-m', "orbital: update environment data for #{env_names}",
+      chdir: @context.application.deployment_worktree.to_s
+    )
+
+    dr_push_refs << "refs/heads/#{dr_log_branch}"
+
+
+    dr_push_and_track_refs.each do |ref|
+      run(
+        'git', 'push', '--set-upstream', 'upstream', ref,
+        chdir: @context.application.deployment_worktree.to_s
+      )
+    end
+
+    run(
+      'git', 'push', 'upstream', *dr_push_refs,
+      chdir: @context.application.deployment_worktree.to_s
+    )
+
+    @release.published = true
+    logger.success "push deployment-repo commits and tags to upstream"
+  end
+
   DEFAULT_IMAGEBUILDER_BACKENDS = {
     'Dockerfile' => :docker,
     'jib' => :gradle
   }
 
+  private
   def build_docker_image(engine, image_name:, source_path:)
     docker_image = OpenStruct.new({
       image_name: image_name,
@@ -181,6 +343,7 @@ class Orbital::Commands::Release < Orbital::Command
     @gcloud_access_token
   end
 
+  private
   def build_docker_image_dockerfile_github(docker_image)
     if @release.tag.state == :unpushed
       run "git", "push", "origin", @release.tag.name
@@ -211,6 +374,7 @@ class Orbital::Commands::Release < Orbital::Command
     logger.success "image built and pushed"
   end
 
+  private
   def build_docker_image_dockerfile_cloudbuild(docker_image)
     run "gcloud", "builds", "submit", "--tag", docker_image.image_ref, docker_image.source_path.to_s
     logger.fatal "image build+push failed" unless $?.success?
@@ -218,6 +382,7 @@ class Orbital::Commands::Release < Orbital::Command
     logger.success "image built and pushed"
   end
 
+  private
   def build_docker_image_dockerfile_docker(docker_image)
     run "docker", "build", "-t", docker_image.image_ref, docker_image.source_path.to_s
     logger.fatal "image build failed" unless $?.success?
@@ -228,10 +393,28 @@ class Orbital::Commands::Release < Orbital::Command
     logger.success "image pushed"
   end
 
-  def build_docker_image_jib_gradle(docker_image)
-    raise NotImplementedError
+  private
+  def run_gradle(*args, **kwargs)
+    gradlew_path = @context.project.root / 'gradlew'
+
+    if gradlew_path.file?
+      run(gradlew_path.to_s, *args, **kwargs)
+    else
+      run('gradle', *args, **kwargs)
+    end
   end
 
+  private
+  def build_docker_image_jib_gradle(docker_image)
+    run_gradle(
+      "jib", "--image=#{docker_image.image_ref}",
+      chdir: @context.project.root.to_s
+    )
+    logger.fatal "jib failed" unless $?.success?
+    logger.success "image built and pushed"
+  end
+
+  private
   def with_temporary_git_tag(release_tag)
     begin
       run "git", "tag", release_tag.name
@@ -245,6 +428,25 @@ class Orbital::Commands::Release < Orbital::Command
         end
         run "git", "tag", "--delete", release_tag.name
         logger.success "delete release tag (local)"
+      end
+    end
+  end
+
+  private
+  def with_deployment_repo
+    begin
+      self.ensure_up_to_date_deployment_repo
+      yield
+    ensure
+      unless @release.published
+        # stopping in the middle of publication corrupts the deployment repo
+        # in a number of complex ways — but it's cheap to just blow it away and
+        # let it get cloned again next time
+        if dwt = @context.application.deployment_worktree
+          self.ensure_cleanup_step_emitted
+          dwt.rmtree
+          logger.success "purge in-progress publication"
+        end
       end
     end
   end

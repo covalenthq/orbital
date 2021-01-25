@@ -11,14 +11,13 @@ require 'pp'
 require 'date'
 require 'orbital/ext/core/uri_join'
 require 'orbital/ext/core/to_flat_string'
-require 'orbital/ext/core/pathname_modify_as_yaml'
 
 require 'k8s-ruby'
 require 'orbital/ext/k8s-ruby/resource_client_helpers'
 require 'paint'
 
 require 'orbital/command'
-require 'orbital/kustomize'
+require 'orbital/deployment_repo_helpers'
 require 'orbital/spinner/polling_spinner'
 
 module Orbital; end
@@ -31,6 +30,8 @@ class Orbital::Commands::Deploy < Orbital::Command
       app.select_deploy_environment(@options.env)
     end
   end
+
+  include Orbital::DeploymentRepoHelpers
 
   def validate_environment!
     return if @context_validated
@@ -581,42 +582,6 @@ class Orbital::Commands::Deploy < Orbital::Command
     active_env.k8s_client
 
     @k8s_client_configured_for_active_env = true
-  end
-
-  def ensure_up_to_date_deployment_repo
-    return if self.ensure_cloned_deployment_repo
-
-    logger.step "fast-forward appctl deployment repo"
-
-    Dir.chdir(@context.application.deployment_worktree_root.to_s) do
-      run 'git', 'fetch', 'upstream', '--tags', '--prune', '--prune-tags'
-
-      upstream_branches = `git for-each-ref refs/heads --format="%(refname:short)"`.chomp.split("\n").sort
-
-      # move default branch to the end, so it ends up staying checked out
-      upstream_branches -= [@context.application.deployment_repo.default_branch]
-      upstream_branches += [@context.application.deployment_repo.default_branch]
-
-      upstream_branches.each do |branch|
-        run 'git', 'checkout', '--quiet', branch
-        run 'git', 'reset', '--hard', "upstream/#{branch}"
-      end
-    end
-  end
-
-  def ensure_cloned_deployment_repo
-    return false if @context.application.deployment_worktree
-
-    logger.step ["clone appctl deployment repo"]
-
-    run 'git', 'clone', @context.application.deployment_repo.clone_uri, @context.application.deployment_worktree_root.to_s
-
-    run(
-      'git', 'remote', 'rename', 'origin', 'upstream',
-      chdir: @context.application.deployment_worktree_root.to_s
-    )
-
-    true
   end
 end
 

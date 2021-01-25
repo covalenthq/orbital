@@ -21,6 +21,10 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
     self.session.orbital_context.project.proposed_release
   end
 
+  def build_steps
+    self.session.orbital_context.project.build_steps
+  end
+
   def release_data
     if rel = self.proposed_release
       {
