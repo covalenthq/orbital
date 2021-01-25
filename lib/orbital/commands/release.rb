@@ -10,7 +10,9 @@ module Orbital::Commands; end
 class Orbital::Commands::Release < Orbital::Command
   def initialize(*args)
     super(*args)
-    @options.imagebuilder = @options.imagebuilder.intern
+    if @options.imagebuilder
+      @options.imagebuilder = @options.imagebuilder.intern
+    end
   end
 
   def validate_environment!
@@ -78,174 +80,156 @@ class Orbital::Commands::Release < Orbital::Command
 
     @release = OpenStruct.new
 
+    @context.project.proposed_release = @release
+
     @release.from_git_branch = `git branch --show-current`.strip
     @release.from_git_branch = nil if @release.from_git_branch.empty?
     @release.from_git_ref = `git rev-parse HEAD`.strip
-    logger.success "get branch and/or ref to return to"
-
-    @context.project.config
-
-    image_names = @context.project.images.keys
-
-    unless image_names.length == 1
-      logger.fatal "multi-image releases not yet implemented"
-    end
-
-    @release.docker_image = OpenStruct.new(
-      name: image_names.first
-    )
-    logger.success "get name of Docker image used in k8s deployment config"
+    logger.success "determine git worktree state"
 
     @release.tag = OpenStruct.new(
       name: "v#{Time.now.strftime("%Y%m%d%H%M%S")}",
       state: :not_pushed
     )
-    @release.docker_image.ref = "#{@release.docker_image.name}:#{@release.tag.name}"
-    logger.success "generate a release name based on the current datetime (like GAE)"
+    logger.step "create a release tag based on the current datetime (like GAE)"
 
-    release_branch_name = "release-#{@release.tag.name}-tmp"
-    return_target = @release.from_git_branch || @release.from_git_ref
-    on_temporary_branch(release_branch_name, return_target) do
-      logger.step "burn release metadata into codebase and k8s resources"
-      modified_paths = self.burn_in_release()
-      modified_paths.each do |path|
-        run "git", "add", path.expand_path.to_s
+    with_temporary_git_tag(@release.tag) do
+      @context.project.build_steps.each.with_index do |build_step, i|
+        logger.step "build (phase #{i + 1}): #{build_step[:name]}"
+
+        case build_step[:builder]
+        in :docker_image
+          image_name = build_step.dig(:params, :image_name)
+          logger.fatal "image_name is required in docker_image builds" unless image_name
+
+          source_path = build_step.dig(:params, :source_path) || @context.project.root
+          docker_spec_type = build_step.dig(:params, :spec_type) || 'Dockerfile'
+          logger.success "collect build-step configuration"
+
+          build_docker_image(docker_spec_type, source_path: source_path, image_name: image_name)
+        end
       end
 
-      logger.step "create a release commit, and tag it"
-      logger.spawn "git commit"
-      IO.popen(["git", "commit", "--file=-"], "r+") do |io|
-        io.puts "Release #{@release.tag.name}\n\n"
-        if @release.from_git_branch
-          io.puts "Base branch: #{@release.from_git_branch}"
-        end
-        io.puts "Base commit: #{@release.from_git_ref}"
-        io.close_write
-        $stderr.write(io.read)
-      end
-
-      with_temporary_git_tag(@release.tag) do
-        if @options.imagebuilder == :github
-          logger.step "push tag (and accompanying git objects)"
-          run "git", "push", "origin", @release.tag.name
-          @release.tag.state = :tentatively_pushed
-        end
-
-        logger.step "build and push Docker image #{@release.docker_image.ref}"
-
-        case @options.imagebuilder
-        when :github
-          gcloud_access_token = `gcloud auth print-access-token`.strip
-          logger.fatal "gcloud authentication error" unless $?.success?
-
-          require_relative 'trigger'
-
-          trigger_cmd = sibling_command(Orbital::Commands::Trigger,
-            repo: "app",
-            workflow: "imagebuild",
-            branch: @release.tag.name
-          )
-
-          docker_registry_hostname, docker_image_name_path_part =
-            @release.docker_image.name.split('/', 2)
-
-          trigger_cmd.add_inputs({
-            registry_hostname: docker_registry_hostname,
-            registry_username: 'oauth2accesstoken',
-            registry_password: gcloud_access_token,
-            image_name: docker_image_name_path_part,
-            image_tag: @release.tag.name
-          })
-
-          logger.fatal "image build+push failed" unless trigger_cmd.execute
-          @release.tag.state = :pushed
-          logger.success "image built and pushed"
-        when :cloudbuild
-          run "gcloud", "builds", "submit", "--tag", @release.docker_image.ref, "."
-          logger.fatal "image build+push failed" unless $?.success?
-          logger.success "image built and pushed"
-        when :docker
-          run "docker", "build", "-t", @release.docker_image.ref, "."
-          logger.fatal "image build failed" unless $?.success?
-          logger.success "image built"
-
-          run "docker", "push", @release.docker_image.ref
-          logger.fatal "image push failed" unless $?.success?
-          logger.success "image pushed"
-        end
-
-        if @release.tag.state == :not_pushed
-          logger.step "push tag (and accompanying git objects)"
-          run "git", "push", "origin", @release.tag.name
-          @release.tag.state = :pushed
-        end
+      if @release.tag.state == :not_pushed
+        logger.step "push tag (and accompanying git objects)"
+        run "git", "push", "origin", @release.tag.name
+        @release.tag.state = :pushed
       end
     end
 
-    if @options.deploy
+    if deploy_cmd
       deploy_cmd.options.tag = @release.tag.name
       deploy_cmd.execute
     end
   end
 
-  def burn_in_release
-    [
-      self.burn_in_project_templates,
-      self.burn_in_base_kustomization
-    ].flatten
+  DEFAULT_IMAGEBUILDER_BACKENDS = {
+    'Dockerfile' => :docker,
+    'jib' => :gradle
+  }
+
+  def build_docker_image(engine, image_name:, source_path:)
+    docker_image = OpenStruct.new({
+      image_name: image_name,
+      image_ref: "#{image_name}:#{@release.tag.name}",
+      source_path: source_path
+    })
+
+    registry_part, path_part =
+      if image_name.split('/').length > 2
+         image_name.split('/', 2)
+      else
+        ['hub.docker.com', image_name]
+      end
+
+    docker_image.registry_hostname = registry_part
+    docker_image.image_path_in_registry = path_part
+
+    engine_backend =
+      @options.imagebuilder || DEFAULT_IMAGEBUILDER_BACKENDS[engine]
+
+    logger.info [
+      "building Docker image ",
+      Paint[docker_image.image_ref, :bright]
+    ]
+
+    logger.info [
+      "using build backend ",
+      Paint[engine.to_s, :bright],
+      Paint["+", :blue],
+      Paint[engine_backend.to_s, :bright]
+    ]
+
+    case [engine, engine_backend]
+    in ['Dockerfile', :github]
+      build_docker_image_dockerfile_github(docker_image)
+    in ['Dockerfile', :cloudbuild]
+      build_docker_image_dockerfile_cloudbuild(docker_image)
+    in ['Dockerfile', :docker]
+      build_docker_image_dockerfile_docker(docker_image)
+    in ['jib', :gradle]
+      build_docker_image_jib_gradle(docker_image)
+    else
+      logger.fatal "unsupported engine+backend combination!"
+    end
   end
 
-  def burn_in_project_templates
-    template_paths = @context.project.template_paths
+  def gcloud_access_token
+    return @gcloud_access_token if @gcloud_access_token
+    @gcloud_access_token = `gcloud auth print-access-token`.strip
+    logger.fatal "gcloud authentication error" unless $?.success?
+    @gcloud_access_token
+  end
 
-    template_paths.each do |template_path|
-      patched_doc =
-        template_path.read
-        .gsub(/\blatest\b/, @release.tag.name)
-        .gsub(/\bmaster\b/, @release.from_git_branch)
-        .gsub(/\b0000000000000000000000000000000000000000\b/, @release.from_git_ref)
-
-      template_path.open('w'){ |f| f.write(patched_doc) }
+  def build_docker_image_dockerfile_github(docker_image)
+    if @release.tag.state == :unpushed
+      run "git", "push", "origin", @release.tag.name
+      @release.tag.state = :tentatively_pushed
+      logger.success "tentatively push tag (and accompanying git objects)"
     end
 
-    template_paths
+    gcloud_access_token = self.gcloud_access_token
+
+    require 'orbital/commands/trigger'
+    trigger_cmd = sibling_command(Orbital::Commands::Trigger,
+      repo: "app",
+      workflow: "imagebuild",
+      branch: @release.tag.name
+    )
+
+    trigger_cmd.add_inputs({
+      registry_hostname: docker_image.registry_hostname,
+      registry_username: 'oauth2accesstoken',
+      registry_password: gcloud_access_token,
+      image_name: docker_image.image_path_in_registry,
+      image_tag: @release.tag.name
+    })
+
+    logger.fatal "image build+push failed" unless trigger_cmd.execute
+
+    @release.tag.state = :pushed
+    logger.success "image built and pushed"
   end
 
-  def burn_in_base_kustomization
-    kustomization_path = @context.application.k8s_resources / 'base' / 'kustomization.yaml'
-    kustomization_doc = YAML.load(kustomization_path.read)
-    kustomization_doc['images'] ||= []
-    kustomization_doc['images'].tap do |images|
-      images.delete_if{ |r| r['name'] == @release.docker_image.name }
-      images.push({
-        "name" => @release.docker_image.name,
-        "newTag" => @release.tag.name
-      })
-    end
-    kustomization_path.open('w'){ |io| io.write(kustomization_doc.to_yaml) }
+  def build_docker_image_dockerfile_cloudbuild(docker_image)
+    run "gcloud", "builds", "submit", "--tag", docker_image.image_ref, docker_image.source_path.to_s
+    logger.fatal "image build+push failed" unless $?.success?
 
-    [kustomization_path]
+    logger.success "image built and pushed"
   end
 
-  def sealed_secret_apply_namespace(ns, doc)
-    doc['metadata']['namespace'] = ns
-    doc['spec']['template']['metadata']['namespace'] = ns
-    doc
+  def build_docker_image_dockerfile_docker(docker_image)
+    run "docker", "build", "-t", docker_image.image_ref, docker_image.source_path.to_s
+    logger.fatal "image build failed" unless $?.success?
+    logger.success "image built"
+
+    run "docker", "push", docker_image.image_ref
+    logger.fatal "image push failed" unless $?.success?
+    logger.success "image pushed"
   end
 
-  def on_temporary_branch(new_branch, prev_ref)
-    begin
-      logger.step "create a temporary release branch from current ref"
-      run "git", "checkout", "-b", new_branch
-      yield
-    ensure
-      self.ensure_cleanup_step_emitted
-      run "git", "checkout", prev_ref
-      logger.success "return to previously-checked-out git ref"
-
-      run "git", "branch", "-D", new_branch
-      logger.success "delete temporary release branch"
-    end
+  def build_docker_image_jib_gradle(docker_image)
+    raise NotImplementedError
   end
 
   def with_temporary_git_tag(release_tag)

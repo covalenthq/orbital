@@ -79,16 +79,34 @@ class Orbital::Context::Project
     self.config['schema_version'] || 0
   end
 
-  def images
-    return @images if @images
+  VALID_BUILD_STEP_BUILDER_KEYS = [
+    'docker_image'
+  ]
 
-    imgs = self.config['images'] || []
+  def build_steps
+    return @build_steps if @build_steps
 
-    @images =
-      imgs.map do |r|
-        source_path = @root / r['source_path']
-        [r['name'], source_path]
+    steps = self.config['build_steps'] || []
+
+    @build_steps = steps.map do |step|
+      step_builder_key = VALID_BUILD_STEP_BUILDER_KEYS.find{ |k| step.has_key?(k) }
+
+      unless step_builder_key
+        raise NotImplementedError, "unsupported build step type for #{step.inspect}"
+      end
+
+      step_type = step_builder_key.intern
+      step_name = step['name'] || step_builder_key.tr('_', ' ').capitalize
+
+      step_params = step[step_builder_key].map do |k, v|
+        if /_path$/.match?(k)
+          v = @root / v
+        end
+        [k.intern, v]
       end.to_h
+
+      {name: step_name, builder: step_type, params: step_params}
+    end
   end
 
   def template_paths
@@ -121,6 +139,8 @@ class Orbital::Context::Project
 
     app_inst
   end
+
+  attr_accessor :proposed_release
 
   def inspect
     "#<Orbital/Project root=#{@root.to_s.inspect}>"

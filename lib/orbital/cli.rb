@@ -84,7 +84,7 @@ class Orbital::CLI < Orbital::CommandRouter
 
   desc 'release', 'Burn a tagged release commit, and build an image from it'
   method_option :imagebuilder, aliases: '-i', type: :string, banner: 'STRATEGY',
-                               enum: ['docker', 'github', 'cloudbuild'], default: 'docker',
+                               enum: ['docker', 'github', 'cloudbuild', 'gradle'],
                                desc: "Build Docker image with the given strategy."
   method_option :deploy, aliases: '-d', type: :boolean, default: false,
                        desc: "Automatically deploy if release succeeds."
