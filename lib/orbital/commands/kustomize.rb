@@ -36,6 +36,7 @@ class Orbital::Commands::Kustomize < Orbital::Command
     logger.step "collect release information"
 
     @release = OpenStruct.new
+    @release.created_at = Time.now
 
     @context.project.proposed_release = @release
 

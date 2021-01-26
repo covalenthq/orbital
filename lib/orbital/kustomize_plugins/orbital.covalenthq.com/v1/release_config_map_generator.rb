@@ -28,13 +28,14 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
   def release_data
     if rel = self.proposed_release
       {
-        'name' => rel.tag.name,
+        'version' => rel.tag.name,
+        'build.time' => rel.created_at.to_i,
         'git.ref' => rel.from_git_ref,
         'git.branch' => rel.from_git_branch
       }
     else
       {
-        'name' => 'latest'
+        'version' => 'latest'
       }
     end
   end
