@@ -269,6 +269,8 @@ class Orbital::Commands::Release < Orbital::Command
     dr_push_refs << "refs/heads/#{dr_log_branch}"
 
 
+    logger.step "push deployment-repo commits and tags to upstream"
+
     dr_push_and_track_refs.each do |ref|
       run(
         'git', 'push', '--set-upstream', 'upstream', ref,
@@ -282,7 +284,6 @@ class Orbital::Commands::Release < Orbital::Command
     )
 
     @release.published = true
-    logger.success "push deployment-repo commits and tags to upstream"
   end
 
   DEFAULT_IMAGEBUILDER_BACKENDS = {
