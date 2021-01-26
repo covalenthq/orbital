@@ -493,12 +493,19 @@ class Orbital::Commands::Deploy < Orbital::Command
         Paint[@options.tag, :bold],
         " deployed to env '",
         Paint[@options.env, :bold],
-        "'.\n\nPlease ",
-        link_to(
-          active_env.gke_app_dashboard_uri,
-          "visit the Google Kubernetes Engine details page for this application"
-        ),
-        " to ensure resources have converged."
+        "'.",
+        if dash_uri = active_env.dashboard_uri
+          [
+            "\n\nPlease ",
+            link_to(
+              dash_uri,
+              "visit the dashboard page for this application"
+            ),
+            " to ensure resources have converged."
+          ]
+        else
+          []
+        end
       ]
 
       return
@@ -556,15 +563,17 @@ class Orbital::Commands::Deploy < Orbital::Command
       logger.error "Deploy failed!"
     end
 
-    logger.break(2)
-    logger.info [
-      "You can ",
-      link_to(
-        active_env.gke_app_dashboard_uri,
-        "visit the Google Kubernetes Engine details page for this application"
-      ),
-      " to view detailed status information."
-    ]
+    if dash_uri = active_env.dashboard_uri
+      logger.break(2)
+      logger.info [
+        "You can ",
+        link_to(
+          dash_uri,
+          "visit the dashboard page for this application"
+        ),
+        " to view detailed status information."
+      ]
+    end
   end
 
   def ensure_k8s_client_configured_for_active_env!
