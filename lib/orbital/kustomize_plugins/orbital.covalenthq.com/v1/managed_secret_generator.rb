@@ -73,6 +73,7 @@ class Orbital::KustomizePlugins::ManagedSecretGenerator < Kustomize::GeneratorPl
 
   SEALED_SECRET_API_VERSION = 'bitnami.com/v1alpha1'
   SEALED_SECRET_KIND = 'SealedSecret'
+  SEALED_SECRET_NS_WIDE_SCOPE_ANNOT = 'sealedsecrets.bitnami.com/namespace-wide'
 
   KUSTOMIZER_DIGEST_ANNOT = 'kustomizer.covalenthq.com/effective-fingerprint'
 
@@ -97,6 +98,7 @@ class Orbital::KustomizePlugins::ManagedSecretGenerator < Kustomize::GeneratorPl
         'namespace' => @use_namespace,
         'name' => sec.name.to_s,
         'annotations' => {
+          SEALED_SECRET_NS_WIDE_SCOPE_ANNOT => 'true',
           KUSTOMIZER_DIGEST_ANNOT => fingerprint
         }
       },
