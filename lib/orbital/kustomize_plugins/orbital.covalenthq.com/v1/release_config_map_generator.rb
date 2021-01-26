@@ -49,7 +49,7 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
     data_parts = self.release_data
     data_parts = data_parts.find_all{ |k, v| not(v.nil?) }.to_h
 
-    var_members = data_parts.dup
+    var_members = data_parts.map{ |k, v| [k.to_s, v.to_s] }.to_h
 
     properties_member = data_parts.map do |k, v|
       "com.covalenthq.orbital.release.#{k}=#{v}\n"
