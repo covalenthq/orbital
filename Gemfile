@@ -7,7 +7,6 @@ source 'https://rubygems.org'
 gemspec
 
 gem 'k8s-ruby', github: 'tsutsu/k8s-ruby', branch: 'fork-master'
-gem 'recursive-open-struct', github: 'tsutsu/recursive-open-struct', branch: 'fix-ruby3-support'
 
 gem 'accessory', path: '../accessory'
 gem 'kustomizer', path: '../kustomizer'
