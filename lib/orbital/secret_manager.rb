@@ -90,6 +90,7 @@ class Orbital::SecretManager
         @persisted_secrets.delete(secret_name)
         secret
       else
+        secret.backing_path.parent.mkpath
         secret.backing_path.open('w'){ |f| f.write(secret.to_yaml) }
         @persisted_secrets[secret_name] = secret
       end
