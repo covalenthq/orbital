@@ -1,11 +1,11 @@
 GIT
   remote: https://github.com/tsutsu/k8s-ruby.git
-  revision: 177ba953169f32b6b40b85eedae85659825381b5
+  revision: 3e3e3cd1c05dd893774c11adcc5fa112500f3fdf
   branch: fork-master
   specs:
     k8s-ruby (0.10.5)
-      dry-struct (~> 1.3.0)
-      dry-types (~> 1.4.0)
+      dry-struct (~> 1.4.0)
+      dry-types (~> 1.5.0)
       excon (~> 0.78)
       hashdiff (~> 1.0.1)
       jsonpath (~> 1.1.0)
@@ -13,45 +13,19 @@ GIT
       yajl-ruby (~> 1.4.1)
       yaml-safe_load_stream2 (~> 0.1)
 
-GIT
-  remote: https://github.com/tsutsu/recursive-open-struct.git
-  revision: 1467ac3107582ab32de016fa320c1e204b10a1af
-  branch: fix-ruby3-support
-  specs:
-    recursive-open-struct (1.1.3)
-
-PATH
-  remote: ../accessory
-  specs:
-    accessory (0.1.10)
-
-PATH
-  remote: ../kubesealr
-  specs:
-    kubesealr (0.1.1)
-      k8s-ruby
-      openssl-oaep
-
-PATH
-  remote: ../kustomizer
-  specs:
-    kustomizer (0.1.3)
-      accessory (~> 0.1.9)
-      base32-multi
-
 PATH
   remote: .
   specs:
     orbital (0.1.0)
-      activesupport
+      accessory (~> 0.1.10)
+      activesupport (~> 6.1.1)
       base32-multi (~> 0.1.0)
-      k8s-ruby
+      k8s-ruby (~> 0.10.5)
       kubesealr (~> 0.1.0)
-      kustomizer (~> 0.1.1)
-      paint
+      kustomizer (~> 0.1.6)
+      paint (~> 2.2.1)
       recursive-open-struct (~> 1.0, >= 1.0.1)
       thor (~> 1.0.1)
-      toml
       tty-command (~> 0.10.0)
       tty-link (~> 0.1.1)
       tty-platform (~> 0.3.0)
@@ -62,6 +36,7 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    accessory (0.1.10)
     activesupport (6.1.1)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (>= 1.6, < 2)
@@ -70,7 +45,7 @@ GEM
       zeitwerk (~> 2.3)
     base32-multi (0.1.1)
     coderay (1.1.3)
-    concurrent-ruby (1.1.7)
+    concurrent-ruby (1.1.8)
     diff-lcs (1.4.4)
     dry-configurable (0.12.0)
       concurrent-ruby (~> 1.0)
@@ -80,21 +55,18 @@ GEM
       dry-configurable (~> 0.1, >= 0.1.3)
     dry-core (0.5.0)
       concurrent-ruby (~> 1.0)
-    dry-equalizer (0.3.0)
     dry-inflector (0.2.0)
     dry-logic (1.1.0)
       concurrent-ruby (~> 1.0)
       dry-core (~> 0.5, >= 0.5)
-    dry-struct (1.3.0)
-      dry-core (~> 0.4, >= 0.4.4)
-      dry-equalizer (~> 0.3)
-      dry-types (~> 1.3)
+    dry-struct (1.4.0)
+      dry-core (~> 0.5, >= 0.5)
+      dry-types (~> 1.5)
       ice_nine (~> 0.11)
-    dry-types (1.4.0)
+    dry-types (1.5.0)
       concurrent-ruby (~> 1.0)
       dry-container (~> 0.3)
-      dry-core (~> 0.4, >= 0.4.4)
-      dry-equalizer (~> 0.3)
+      dry-core (~> 0.5, >= 0.5)
       dry-inflector (~> 0.1, >= 0.1.2)
       dry-logic (~> 1.0, >= 1.0.2)
     excon (0.78.1)
@@ -104,18 +76,24 @@ GEM
     ice_nine (0.11.2)
     jsonpath (1.1.0)
       multi_json
+    kubesealr (0.1.1)
+      k8s-ruby
+      openssl-oaep
+    kustomizer (0.1.6)
+      accessory (~> 0.1.9)
+      base32-multi
     method_source (1.0.0)
     minitest (5.14.3)
     multi_json (1.15.0)
     openssl-oaep (0.1.0)
     paint (2.2.1)
-    parslet (1.8.2)
     pastel (0.8.0)
       tty-color (~> 0.5)
     pry (0.13.1)
       coderay (~> 1.1)
       method_source (~> 1.0)
     rake (13.0.3)
+    recursive-open-struct (1.1.3)
     rspec (3.10.0)
       rspec-core (~> 3.10.0)
       rspec-expectations (~> 3.10.0)
@@ -125,18 +103,16 @@ GEM
     rspec-expectations (3.10.1)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.10.0)
-    rspec-mocks (3.10.1)
+    rspec-mocks (3.10.2)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.10.0)
-    rspec-support (3.10.1)
+    rspec-support (3.10.2)
     strings (0.2.0)
       strings-ansi (~> 0.2)
       unicode-display_width (~> 1.5)
       unicode_utils (~> 1.4)
     strings-ansi (0.2.0)
     thor (1.0.1)
-    toml (0.2.0)
-      parslet (~> 1.8.0)
     tty-color (0.6.0)
     tty-command (0.10.0)
       pastel (~> 0.8)
@@ -169,18 +145,14 @@ PLATFORMS
   x86_64-darwin-20
 
 DEPENDENCIES
-  accessory!
   k8s-ruby!
-  kubesealr!
-  kustomizer!
   orbital!
   pry (~> 0.13.1)
   rake (~> 13.0)
-  recursive-open-struct!
   rspec (~> 3.10.0)
 
 RUBY VERSION
    ruby 3.0.0p0
 
 BUNDLED WITH
-   2.2.6
+   2.2.7
