@@ -34,14 +34,19 @@ class Orbital::SecretsCommand < Orbital::Command
 
   def ensure_sealer!
     @context.application.select_deploy_environment(@options.env)
-    active_de_loc = @context.deploy_environment.location
 
-    k8s_namespaces_with_matching_location =
-      @context.application.deploy_environments.values
-      .find_all{ |de| de.location == active_de_loc }
-      .map{ |de| de.k8s_namespace }
+    seal_for_namespaces =
+      if sfn = @context.deploy_environment.sealing_for_namespaces
+        sfn
+      else
+        active_de_loc = @context.deploy_environment.location
 
-    @context.project.secret_manager.sealing_for_namespaces(k8s_namespaces_with_matching_location)
+        @context.application.deploy_environments.values
+        .find_all{ |de| de.location == active_de_loc }
+        .map{ |de| de.k8s_namespace }
+      end
+
+    @context.project.secret_manager.sealing_for_namespaces(seal_for_namespaces)
   end
 end
 

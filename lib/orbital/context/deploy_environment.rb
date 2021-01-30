@@ -45,6 +45,10 @@ class Orbital::Context::DeployEnvironment
     @kustomization_dir = target
   end
 
+  def sealing_for_namespaces
+    @config['sealing_for_namespaces']
+  end
+
   def dashboard_uri
     nil
   end
