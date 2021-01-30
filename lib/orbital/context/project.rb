@@ -36,8 +36,21 @@ class Orbital::Context::Project
     end
   end
 
+  CONFIG_DIR_PATHS = ['.orbital', 'orbital']
+
   def config_dir
-    @root / '.orbital'
+    return @config_dir if @config_dir
+
+    maybe_config_dir =
+      CONFIG_DIR_PATHS
+      .map{ |dname| @root / dname }
+      .find{ |d| d.directory? }
+
+    if maybe_config_dir
+      @config_dir = maybe_config_dir
+    else
+      @root / CONFIG_DIR_PATHS.first
+    end
   end
 
   def managed_secrets_store_path
