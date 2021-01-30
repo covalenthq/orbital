@@ -83,18 +83,22 @@ class Orbital::SecretManager
     dirty_secrets = @dirty_secrets
     @dirty_secrets = {}
 
+    new_persisted_secrets = self.persisted_secrets
+
     dirty_secrets.each do |secret_name, secret|
       secret.commit!
       if secret.deleted?
         secret.backing_path.unlink if secret.backing_path.file?
-        @persisted_secrets.delete(secret_name)
+        new_persisted_secrets.delete(secret_name)
         secret
       else
         secret.backing_path.parent.mkpath
         secret.backing_path.open('w'){ |f| f.write(secret.to_yaml) }
-        @persisted_secrets[secret_name] = secret
+        new_persisted_secrets[secret_name] = secret
       end
     end
+
+    @persisted_secrets = new_persisted_secrets
   end
 
   private
