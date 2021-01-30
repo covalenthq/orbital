@@ -248,6 +248,17 @@ class Orbital::Commands::Release < Orbital::Command
     )
 
     envs_path = @context.application.deployment_worktree / 'environments.yaml'
+
+    unless envs_path.file?
+      envs_docs = @context.application.env_paths.sort.map do |f|
+        doc = YAML.load(f.read)
+        doc['creation_time'] = publish_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        doc
+      end
+
+      envs_path.open('w'){ |f| f.write({'envs' => envs_docs}.to_yaml) }
+    end
+
     envs_path.modify_as_yaml do |docs|
       docs[0]['envs'].each do |env_doc|
         env_doc['last_update_time'] = publish_start_time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -255,6 +266,7 @@ class Orbital::Commands::Release < Orbital::Command
 
       docs
     end
+
     run(
       'git', 'add', envs_path.to_s,
       chdir: @context.application.deployment_worktree.to_s
