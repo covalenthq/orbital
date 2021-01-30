@@ -200,7 +200,7 @@ class Orbital::Commands::Release < Orbital::Command
 
       artifact_path = @context.application.deployment_worktree / 'artifact.yaml'
 
-      unless artifact_path.read == hydrated_config
+      unless artifact_path.file? and artifact_path.read == hydrated_config
         artifact_path.open('w'){ |f| f.write(hydrated_config) }
 
         run(
