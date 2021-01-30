@@ -10,6 +10,14 @@ module Orbital::Commands; end
 module Orbital::Commands::Secrets; end
 
 class Orbital::SecretsCommand < Orbital::Command
+  def initialize(*opts)
+    super(*opts)
+
+    if @options.env.nil? and @context.project
+      @options.env = @context.project.default_env_name
+    end
+  end
+
   def validate_environment!
     return if @context_validated
 

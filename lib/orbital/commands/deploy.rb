@@ -25,7 +25,13 @@ module Orbital::Commands; end
 class Orbital::Commands::Deploy < Orbital::Command
   def initialize(*opts)
     super(*opts)
+
     @options.deployer = @options.deployer.intern
+
+    if @options.env.nil? and @context.project
+      @options.env = @context.project.default_env_name
+    end
+
     if app = @context.application
       app.select_deploy_environment(@options.env)
     end

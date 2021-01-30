@@ -57,6 +57,10 @@ class Orbital::Context::Project
     self.config_dir / 'managed-secrets'
   end
 
+  def default_env_name
+    self.config['default_environment']
+  end
+
   def secret_manager
     return @secret_manager if @secret_manager
     require 'orbital/secret_manager'

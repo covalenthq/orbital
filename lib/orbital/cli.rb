@@ -83,7 +83,7 @@ class Orbital::CLI < Orbital::CommandRouter
   end
 
   desc 'kustomize', 'Emit the k8s resource-configs that would be used in release'
-  method_option :env, aliases: '-e', type: :string, default: "staging",
+  method_option :env, aliases: '-e', type: :string,
                       desc: "appctl(1) environment to target."
   def kustomize(*)
     return invoke(:help, [:kustomize]) if options[:help]
@@ -111,7 +111,7 @@ class Orbital::CLI < Orbital::CommandRouter
   desc 'deploy', 'Push a release to a k8s appctl(1) environment'
   method_option :tag, aliases: '-t', type: :string, required: true,
                       desc: "Release tag to deploy."
-  method_option :env, aliases: '-e', type: :string, default: "staging",
+  method_option :env, aliases: '-e', type: :string,
                       desc: "appctl(1) environment to target."
   method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
                            enum: ['appctl', 'github', 'internal'], default: 'appctl',
@@ -134,7 +134,7 @@ end
 class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
   def self.subcommand_prefix; 'secrets'; end
 
-  class_option :env, aliases: '-e', type: :string, default: 'staging',
+  class_option :env, aliases: '-e', type: :string,
                     desc: "appctl(1) environment to target."
 
   default_task 'list'
