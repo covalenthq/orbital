@@ -1,5 +1,5 @@
 GIT
-  remote: https://github.com/tsutsu/k8s-ruby.git
+  remote: git://github.com/tsutsu/k8s-ruby.git
   revision: 3e3e3cd1c05dd893774c11adcc5fa112500f3fdf
   branch: fork-master
   specs:
@@ -17,12 +17,12 @@ PATH
   remote: .
   specs:
     orbital (0.1.0)
-      accessory (~> 0.1.10)
+      accessory (~> 0.1.11)
       activesupport (~> 6.1.1)
       base32-multi (~> 0.1.0)
       k8s-ruby (~> 0.10.5)
-      kubesealr (~> 0.1.0)
-      kustomizer (~> 0.1.8)
+      kubesealr (~> 0.1.2)
+      kustomizer (~> 0.1.10)
       paint (~> 2.2.1)
       recursive-open-struct (~> 1.0, >= 1.0.1)
       thor (~> 1.0.1)
@@ -36,7 +36,7 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    accessory (0.1.10)
+    accessory (0.1.11)
     activesupport (6.1.1)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (>= 1.6, < 2)
@@ -76,11 +76,11 @@ GEM
     ice_nine (0.11.2)
     jsonpath (1.1.0)
       multi_json
-    kubesealr (0.1.1)
+    kubesealr (0.1.2)
       k8s-ruby
       openssl-oaep
-    kustomizer (0.1.8)
-      accessory (~> 0.1.9)
+    kustomizer (0.1.10)
+      accessory (~> 0.1.11)
       base32-multi
     method_source (1.0.0)
     minitest (5.14.3)
@@ -142,7 +142,7 @@ GEM
     zeitwerk (2.4.2)
 
 PLATFORMS
-  x86_64-darwin-20
+  ruby
 
 DEPENDENCIES
   k8s-ruby!
@@ -152,7 +152,7 @@ DEPENDENCIES
   rspec (~> 3.10.0)
 
 RUBY VERSION
-   ruby 3.0.0p0
+   ruby 2.6.3p62
 
 BUNDLED WITH
-   2.2.7
+   1.17.2
