@@ -93,6 +93,8 @@ class Orbital::Commands::Release < Orbital::Command
     @release.from_git_ref = `git rev-parse HEAD`.strip
     logger.success "determine git worktree state"
 
+    @release.artifact_refs = {}
+
     @release.tag = OpenStruct.new(
       name: "v#{Time.now.strftime("%Y%m%d%H%M%S")}",
       state: :not_pushed
@@ -424,6 +426,13 @@ class Orbital::Commands::Release < Orbital::Command
       chdir: @context.project.root.to_s
     )
     logger.fatal "jib failed" unless $?.success?
+
+    jib_result_doc = JSON.load(@context.project.root / 'build' / 'jib-image.json')
+
+    if jib_result_doc['image'] == docker_image.image_ref
+      @release.artifact_refs[docker_image.image_name] = jib_result_doc['imageDigest']
+    end
+
     logger.success "image built and pushed"
   end
 

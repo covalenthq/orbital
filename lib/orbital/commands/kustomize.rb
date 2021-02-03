@@ -49,6 +49,8 @@ class Orbital::Commands::Kustomize < Orbital::Command
     @release.from_git_branch = nil if @release.from_git_branch.empty?
     @release.from_git_ref = `git rev-parse HEAD`.strip
 
+    @release.artifact_refs = {}
+
     @release.tag = OpenStruct.new(
       name: "v#{Time.now.strftime("%Y%m%d%H%M%S")}",
       state: :not_pushed
