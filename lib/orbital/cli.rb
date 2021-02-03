@@ -98,7 +98,7 @@ class Orbital::CLI < Orbital::CommandRouter
   method_option :deploy, aliases: '-d', type: :boolean, default: false,
                        desc: "Automatically deploy if release succeeds."
   method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
-                           enum: ['appctl', 'github', 'internal'], default: 'appctl',
+                           enum: ['appctl', 'github', 'internal'], default: 'internal',
                            desc: "Deploy with the given strategy."
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
@@ -114,7 +114,7 @@ class Orbital::CLI < Orbital::CommandRouter
   method_option :env, aliases: '-e', type: :string,
                       desc: "appctl(1) environment to target."
   method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
-                           enum: ['appctl', 'github', 'internal'], default: 'appctl',
+                           enum: ['appctl', 'github', 'internal'], default: 'internal',
                            desc: "Deploy with the given strategy."
   method_option :wait, aliases: '-w', type: :boolean, default: true,
                        desc: "Wait for k8s state to converge."
