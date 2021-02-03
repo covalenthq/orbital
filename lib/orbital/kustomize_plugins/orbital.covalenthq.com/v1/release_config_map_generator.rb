@@ -44,6 +44,8 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
     [build_config_map_rc(self.proposed_release)]
   end
 
+  KUSTOMIZER_DIGEST_ANNOT = 'kustomizer.covalenthq.com/effective-fingerprint'
+
   private
   def build_config_map_rc(rel)
     data_parts = self.release_data
@@ -63,7 +65,10 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
       'kind' => 'ConfigMap',
       'metadata' => {
         'namespace' => @emit_ns,
-        'name' => @emit_name
+        'name' => @emit_name,
+        'annotations' => {
+          KUSTOMIZER_DIGEST_ANNOT => ''
+        }
       },
       'data' => all_members
     }
