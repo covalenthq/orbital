@@ -1,5 +1,5 @@
 GIT
-  remote: git://github.com/tsutsu/k8s-ruby.git
+  remote: https://github.com/tsutsu/k8s-ruby.git
   revision: 3e3e3cd1c05dd893774c11adcc5fa112500f3fdf
   branch: fork-master
   specs:
@@ -153,6 +153,3 @@ DEPENDENCIES
 
 RUBY VERSION
    ruby 2.6.3p62
-
-BUNDLED WITH
-   1.17.2
