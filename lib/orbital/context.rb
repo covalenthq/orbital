@@ -1,4 +1,5 @@
 require 'pathname'
+require 'set'
 
 require 'orbital/errors'
 
