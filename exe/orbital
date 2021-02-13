@@ -21,7 +21,13 @@ deps_mtime = [gemfile_path, lockfile_path, gemspec_path].map(&:mtime).max
 
 vendor_active_dir =
   if vendor_dir.directory?
-    (vendor_dir / 'ruby').children.find{ |f| f.directory? }
+    vendor_ruby_dirs = [
+      (vendor_dir / 'bundle' / 'ruby'),
+      (vendor_dir / 'ruby')
+    ]
+    if vendor_ruby_dir = vendor_ruby_dirs.find{ |f| f.directory? }
+      vendor_ruby_dir.children.sort.reverse.find{ |f| f.directory? }
+    end
   end
 
 unless vendor_active_dir and deps_mtime <= vendor_active_dir.mtime
