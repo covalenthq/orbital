@@ -16,6 +16,10 @@ class Orbital::Commands::Kustomize < Orbital::Command
       @options.env = @context.project.default_env_name
     end
 
+    if @options.component
+      @context.kustomize_session.only_emit_component = @options.component
+    end
+
     if app = @context.application
       app.select_deploy_environment(@options.env)
     end

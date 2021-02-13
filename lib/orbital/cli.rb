@@ -85,6 +85,8 @@ class Orbital::CLI < Orbital::CommandRouter
   desc 'kustomize', 'Emit the k8s resource-configs that would be used in release'
   method_option :env, aliases: '-e', type: :string,
                       desc: "appctl(1) environment to target."
+  method_option :component, aliases: '-c', type: :string,
+                      desc: "Emit only the specified KustomizeR component."
   def kustomize(*)
     return invoke(:help, [:kustomize]) if options[:help]
     require 'orbital/commands/kustomize'
