@@ -62,6 +62,8 @@ class Orbital::Commands::Kustomize < Orbital::Command
       logger.fatal ["kustomization directory for env '", Paint[deploy_env.name.to_s, :bold], "' does not exist"]
     end
 
+    @context.project.secret_manager.sealing_for_namespaces(deploy_env.sealing_for_namespaces)
+
     kustomize_emitter = Kustomize.load(deploy_env.kustomization_dir, session: @context.kustomize_session)
 
     hydrated_config = kustomize_emitter.to_yaml_stream
