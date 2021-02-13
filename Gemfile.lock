@@ -22,10 +22,10 @@ PATH
       base32-multi (~> 0.1.0)
       k8s-ruby (~> 0.10.5)
       kubesealr (~> 0.1.2)
-      kustomizer (~> 0.1.10)
+      kustomizer (~> 0.1.11)
       paint (~> 2.2.1)
       recursive-open-struct (~> 1.0, >= 1.0.1)
-      thor (~> 1.0.1)
+      thor (~> 1.1.0)
       tty-command (~> 0.10.0)
       tty-link (~> 0.1.1)
       tty-platform (~> 0.3.0)
@@ -37,7 +37,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     accessory (0.1.11)
-    activesupport (6.1.1)
+    activesupport (6.1.2.1)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (>= 1.6, < 2)
       minitest (>= 5.1)
@@ -71,7 +71,7 @@ GEM
       dry-logic (~> 1.0, >= 1.0.2)
     excon (0.79.0)
     hashdiff (1.0.1)
-    i18n (1.8.8)
+    i18n (1.8.9)
       concurrent-ruby (~> 1.0)
     ice_nine (0.11.2)
     jsonpath (1.1.0)
@@ -79,7 +79,7 @@ GEM
     kubesealr (0.1.2)
       k8s-ruby
       openssl-oaep
-    kustomizer (0.1.10)
+    kustomizer (0.1.11)
       accessory (~> 0.1.11)
       base32-multi
     method_source (1.0.0)
@@ -89,7 +89,7 @@ GEM
     paint (2.2.1)
     pastel (0.8.0)
       tty-color (~> 0.5)
-    pry (0.13.1)
+    pry (0.14.0)
       coderay (~> 1.1)
       method_source (~> 1.0)
     rake (13.0.3)
@@ -112,7 +112,7 @@ GEM
       unicode-display_width (~> 1.5)
       unicode_utils (~> 1.4)
     strings-ansi (0.2.0)
-    thor (1.0.1)
+    thor (1.1.0)
     tty-color (0.6.0)
     tty-command (0.10.0)
       pastel (~> 0.8)
@@ -147,7 +147,7 @@ PLATFORMS
 DEPENDENCIES
   k8s-ruby!
   orbital!
-  pry (~> 0.13.1)
+  pry (~> 0.14.0)
   rake (~> 13.0)
   rspec (~> 3.10.0)
 
