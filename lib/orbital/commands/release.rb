@@ -17,6 +17,14 @@ class Orbital::Commands::Release < Orbital::Command
     if @options.imagebuilder
       @options.imagebuilder = @options.imagebuilder.intern
     end
+
+    if @options.deploy
+      @options.prepare = true
+    end
+
+    if @options.prepare.nil?
+      @options.prepare = !!(@context.application&.deployment_repo)
+    end
   end
 
   include Orbital::DeploymentRepoHelpers
@@ -124,8 +132,10 @@ class Orbital::Commands::Release < Orbital::Command
         @release.tag.state = :pushed
       end
 
-      with_deployment_repo do
-        publish_to_deployment_repo!
+      if @options.prepare
+        with_deployment_repo do
+          publish_to_deployment_repo!
+        end
       end
     end
 

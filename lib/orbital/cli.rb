@@ -97,8 +97,10 @@ class Orbital::CLI < Orbital::CommandRouter
   method_option :imagebuilder, aliases: '-i', type: :string, banner: 'STRATEGY',
                                enum: ['docker', 'github', 'cloudbuild', 'gradle'],
                                desc: "Build Docker image with the given strategy."
+  method_option :prepare, aliases: '-p', type: :boolean,
+                       desc: "Automatically prepare for deploy if release succeeds."
   method_option :deploy, aliases: '-d', type: :boolean, default: false,
-                       desc: "Automatically deploy if release succeeds."
+                       desc: "Automatically deploy if release succeeds. (Implies --prepare)"
   method_option :deployer, aliases: '-D', type: :string, banner: 'STRATEGY',
                            enum: ['appctl', 'github', 'internal'], default: 'internal',
                            desc: "Deploy with the given strategy."

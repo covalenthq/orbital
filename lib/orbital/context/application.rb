@@ -66,6 +66,7 @@ class Orbital::Context::Application
 
   def deployment_repo
     return @deployment_repo if @deployment_repo
+    return nil unless @config.deployment_repo_url
 
     repo_uri = URI(@config.deployment_repo_url)
     clone_uri = "git@#{repo_uri.hostname}:#{repo_uri.path[1..-1]}.git"
