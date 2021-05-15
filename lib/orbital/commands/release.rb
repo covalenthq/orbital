@@ -101,6 +101,46 @@ class Orbital::Commands::Release < Orbital::Command
     @release.from_git_ref = `git rev-parse HEAD`.strip
     logger.success "determine git worktree state"
 
+    run 'git', 'fetch'
+
+    existing_git_tags = run(
+      'git', 'describe', '--tags', '--exact-match', 'HEAD',
+      capturing_output: true,
+      fail_ok: true,
+      err: '/dev/null'
+    ).split("\n").map{ |ln| ln.strip }.to_set
+
+    if existing_release_name = existing_git_tags.find{ |t| t =~ /^v\d+/ }
+      logger.fatal ["This commit has already been released as ", Paint[existing_release_name, :bold]]
+    else
+      logger.success "git commit not yet tagged as a release"
+    end
+
+    if @release.from_git_branch
+      origin_git_branch = "origin/#{@release.from_git_branch}"
+
+      origin_git_ref = run(
+        'git', 'rev-parse', origin_git_branch,
+        capturing_output: true,
+        fail_ok: true,
+        err: '/dev/null'
+      ).strip
+      origin_git_ref = nil if origin_git_ref !~ /[0-9a-f]{40}/i
+
+      if origin_git_ref
+        if origin_git_ref == @release.from_git_ref
+          logger.success ["local git ref for '", @release.from_git_branch, "' matches ref for '", origin_git_branch, "'"]
+        else
+          logger.failure ["local git ref for '", @release.from_git_branch, "' ", Paint["does not match", :bold], " ref for '", origin_git_branch, "'"]
+          logger.fatal "Cowardly refusing to create a potentially non-reproducible build.\n\nPlease ensure the current git branch is synced with the remote before releasing."
+        end
+      else
+        logger.info ["local git ref '", @release.from_git_branch, "' ", Paint["does not exist", :bold], " on the remote"]
+      end
+    else
+      logger.skipped "git remote not checked for sync (not on a branch)"
+    end
+
     @release.artifact_refs = {}
 
     @release.tag = OpenStruct.new(
