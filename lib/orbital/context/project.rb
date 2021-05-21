@@ -96,34 +96,37 @@ class Orbital::Context::Project
     self.config['schema_version'] || 0
   end
 
-  VALID_BUILD_STEP_BUILDER_KEYS = [
-    'docker_image'
+  VALID_BUILD_STEP_BUILDER_KEYS = Set[
+    :docker_image
   ]
 
-  def build_steps
-    return @build_steps if @build_steps
+  def artifact_blueprints
+    return @artifact_blueprints if @artifact_blueprints
 
-    steps = self.config['build_steps'] || []
+    afs = self.config['artifacts'] || {}
 
-    @build_steps = steps.map do |step|
-      step_builder_key = VALID_BUILD_STEP_BUILDER_KEYS.find{ |k| step.has_key?(k) }
+    @artifact_blueprints = afs.map do |af_name, af_parts|
+      build_steps = (af_parts['build_steps'] || []).map do |step|
+        step_type = (step['type'] || 'unknown').intern
 
-      unless step_builder_key
-        raise NotImplementedError, "unsupported build step type for #{step.inspect}"
+        unless VALID_BUILD_STEP_BUILDER_KEYS.member?(step_type)
+          raise NotImplementedError, "unsupported build step type for #{step.inspect}"
+        end
+
+        step_name = step['name'] || step_type.to_s.tr('_', ' ').capitalize
+
+        step_params = step.map do |k, v|
+          if /_path$/.match?(k)
+            v = @root / v
+          end
+          [k.intern, v]
+        end.to_h
+
+        {name: step_name, builder: step_type, params: step_params}
       end
 
-      step_type = step_builder_key.intern
-      step_name = step['name'] || step_builder_key.tr('_', ' ').capitalize
-
-      step_params = step[step_builder_key].map do |k, v|
-        if /_path$/.match?(k)
-          v = @root / v
-        end
-        [k.intern, v]
-      end.to_h
-
-      {name: step_name, builder: step_type, params: step_params}
-    end
+      [af_name, build_steps]
+    end.to_h
   end
 
   def template_paths

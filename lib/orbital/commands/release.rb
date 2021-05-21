@@ -141,7 +141,7 @@ class Orbital::Commands::Release < Orbital::Command
       logger.skipped "git remote not checked for sync (not on a branch)"
     end
 
-    @release.artifact_refs = {}
+    @release.artifacts = {}
 
     @release.tag = OpenStruct.new(
       name: "v#{Time.now.strftime("%Y%m%d%H%M%S")}",
@@ -150,20 +150,26 @@ class Orbital::Commands::Release < Orbital::Command
     logger.step "create a release tag based on the current datetime (like GAE)"
 
     with_temporary_git_tag(@release.tag) do
-      @context.project.build_steps.each.with_index do |build_step, i|
-        logger.step "build (phase #{i + 1}): #{build_step[:name]}"
+      @context.project.artifact_blueprints.each do |artifact_name, build_steps|
+        artifact_final_details = build_steps.each.with_index.inject({}) do |acc, (build_step, i)|
+          logger.step ["build ", Paint[artifact_name, :blue], " (phase ", Paint[(i + 1).to_s, :bold], "): ", build_step[:name]]
 
-        case build_step[:builder]
-        in :docker_image
-          image_name = build_step.dig(:params, :image_name)
-          logger.fatal "image_name is required in docker_image builds" unless image_name
+          step_details = case build_step[:builder]
+          in :docker_image
+            image_name = build_step.dig(:params, :image_name)
+            logger.fatal "image_name is required in docker_image builds" unless image_name
 
-          source_path = build_step.dig(:params, :source_path) || @context.project.root
-          docker_spec_type = build_step.dig(:params, :spec_type) || 'Dockerfile'
-          logger.success "collect build-step configuration"
+            source_path = build_step.dig(:params, :source_path) || @context.project.root
+            docker_spec_type = build_step.dig(:params, :spec_type) || 'Dockerfile'
+            logger.success "collect build-step configuration"
 
-          build_docker_image(docker_spec_type, source_path: source_path, image_name: image_name)
+            build_docker_image(docker_spec_type, source_path: source_path, image_name: image_name)
+          end
+
+          acc.merge((step_details || {}).filter{ |k, v| v }.to_h)
         end
+
+        @release.artifacts[artifact_name] = artifact_final_details
       end
 
       if @release.tag.state == :not_pushed
@@ -387,7 +393,7 @@ class Orbital::Commands::Release < Orbital::Command
       Paint[engine_backend.to_s, :bright]
     ]
 
-    case [engine, engine_backend]
+    image_digest = case [engine, engine_backend]
     in ['Dockerfile', :github]
       build_docker_image_dockerfile_github(docker_image)
     in ['Dockerfile', :cloudbuild]
@@ -399,6 +405,13 @@ class Orbital::Commands::Release < Orbital::Command
     else
       logger.fatal "unsupported engine+backend combination!"
     end
+
+    {
+      "type" => "DockerImage",
+      "buildEngine" => engine,
+      "image.name" => image_name,
+      "image.digest" => image_digest
+    }
   end
 
   def gcloud_access_token
@@ -437,6 +450,8 @@ class Orbital::Commands::Release < Orbital::Command
 
     @release.tag.state = :pushed
     logger.success "image built and pushed"
+
+    nil
   end
 
   private
@@ -445,6 +460,8 @@ class Orbital::Commands::Release < Orbital::Command
     logger.fatal "image build+push failed" unless $?.success?
 
     logger.success "image built and pushed"
+
+    nil
   end
 
   private
@@ -456,6 +473,11 @@ class Orbital::Commands::Release < Orbital::Command
     run "docker", "push", docker_image.image_ref
     logger.fatal "image push failed" unless $?.success?
     logger.success "image pushed"
+
+    run(
+      'docker', 'inspect', '--format={{index .RepoDigests 0}}', docker_image.image_ref,
+      capturing_output: true
+    ).strip.split('@')[1]
   end
 
   private
@@ -479,11 +501,11 @@ class Orbital::Commands::Release < Orbital::Command
 
     jib_result_doc = JSON.load(@context.project.root / 'build' / 'jib-image.json')
 
-    if jib_result_doc['image'] == docker_image.image_ref
-      @release.artifact_refs[docker_image.image_name] = jib_result_doc['imageDigest']
-    end
-
     logger.success "image built and pushed"
+
+    if jib_result_doc['image'] == docker_image.image_ref
+      jib_result_doc['imageDigest']
+    end
   end
 
   private

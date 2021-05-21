@@ -17,7 +17,9 @@ class Orbital::KustomizePlugins::ImageRefsFromReleaseTransformer < Kustomize::Tr
     return @image_names_sieve if @image_names_sieve
 
     @image_names_sieve =
-      self.session.orbital_context.project.build_steps
+      self.session.orbital_context.project.artifact_blueprints
+      .values
+      .flatten
       .filter{ |a| a[:builder] == :docker_image }
       .map{ |a| a.dig(:params, :image_name) }
       .compact
@@ -30,9 +32,15 @@ class Orbital::KustomizePlugins::ImageRefsFromReleaseTransformer < Kustomize::Tr
     pr = self.session.orbital_context.project.proposed_release
     return @new_refs = {} unless pr
 
+    afs = pr.artifacts.values
+      .filter{ |af| af['type'] == 'DockerImage' && af.has_key?('image.digest') }
+      .map{ |af| [af['image.name'], af['image.digest']] }
+      .to_h
+
     @new_refs = self.image_names_sieve.map do |image_name|
-      if pr.artifact_refs.has_key?(image_name)
-        [image_name, {sigil: '@', ref: pr.artifact_refs[image_name]}]
+      image_digest = afs[image_name]
+      if image_digest
+        [image_name, {sigil: '@', ref: image_digest}]
       else
         [image_name, {sigil: ':', ref: pr.tag.name}]
       end

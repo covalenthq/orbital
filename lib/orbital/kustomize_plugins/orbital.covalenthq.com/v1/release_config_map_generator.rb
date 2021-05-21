@@ -26,18 +26,21 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
   end
 
   def release_data
-    if rel = self.proposed_release
-      {
-        'version' => rel.tag.name,
-        'build.time' => rel.created_at.to_i,
-        'git.ref' => rel.from_git_ref,
-        'git.branch' => rel.from_git_branch
-      }
-    else
-      {
-        'version' => 'latest'
-      }
-    end
+    rel = self.proposed_release
+    return {'release.name' => 'latest'} unless rel
+
+    base_props = {
+      'release.name' => rel.tag.name,
+      'release.git.ref' => rel.from_git_ref,
+      'release.git.branch' => rel.from_git_branch,
+      'release.time' => rel.created_at.to_i
+    }
+
+    af_props = rel.artifacts.flat_map do |artifact_name, details|
+      details.map{ |k, v| ["artifacts.#{artifact_name}.#{k}", v] }
+    end.to_h
+
+    base_props.merge(af_props)
   end
 
   def emit
@@ -54,7 +57,7 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
     var_members = data_parts.map{ |k, v| [k.to_s, v.to_s] }.to_h
 
     properties_member = data_parts.map do |k, v|
-      "com.covalenthq.orbital.release.#{k}=#{v}\n"
+      "com.covalenthq.orbital.#{k}=#{v}\n"
     end.join('')
 
     all_members =
