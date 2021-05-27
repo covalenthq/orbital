@@ -172,6 +172,8 @@ class Orbital::Commands::Release < Orbital::Command
         @release.artifacts[artifact_name] = artifact_final_details
       end
 
+      logger.debug("@release.artifacts: " + @release.artifacts.inspect)
+
       if @release.tag.state == :not_pushed
         logger.step "push tag (and accompanying git objects)"
         run "git", "push", "origin", @release.tag.name
@@ -502,6 +504,9 @@ class Orbital::Commands::Release < Orbital::Command
     jib_result_doc = JSON.load(@context.project.root / 'build' / 'jib-image.json')
 
     logger.success "image built and pushed"
+
+    logger.debug "jib_result_doc: #{jib_result_doc.inspect}"
+    logger.debug "docker_image: #{docker_image.inspect}"
 
     if jib_result_doc['image'] == docker_image.image_ref
       jib_result_doc['imageDigest']

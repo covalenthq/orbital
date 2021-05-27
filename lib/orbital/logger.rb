@@ -163,6 +163,16 @@ class Orbital::Logger
     .to_ansi
   end
 
+  def style_debug(builder, msg_body)
+    builder
+    .text("🐜 ")
+    .sgr{ |sgr| sgr.fg(:cyan) }
+    .text(msg_body)
+    .sgr{ |sgr| sgr.reset }
+    .text("\n")
+    .to_ansi
+  end
+
   def style_info(builder, msg_body)
     builder
     .sgr{ |sgr| sgr.fg(:blue).on(:bold) }
