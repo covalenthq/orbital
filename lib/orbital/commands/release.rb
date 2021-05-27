@@ -412,6 +412,7 @@ class Orbital::Commands::Release < Orbital::Command
       "type" => "DockerImage",
       "buildEngine" => engine,
       "image.name" => image_name,
+      "image.tag" => docker_image.image_ref,
       "image.digest" => image_digest
     }
   end
