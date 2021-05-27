@@ -110,11 +110,11 @@ class Orbital::Commands::Release < Orbital::Command
       err: '/dev/null'
     ).split("\n").map{ |ln| ln.strip }.to_set
 
-    if existing_release_name = existing_git_tags.find{ |t| t =~ /^v\d+/ }
-      logger.fatal ["This commit has already been released as ", Paint[existing_release_name, :bold]]
-    else
-      logger.success "git commit not yet tagged as a release"
-    end
+    # if existing_release_name = existing_git_tags.find{ |t| t =~ /^v\d+/ }
+    #   logger.fatal ["This commit has already been released as ", Paint[existing_release_name, :bold]]
+    # else
+    #   logger.success "git commit not yet tagged as a release"
+    # end
 
     if @release.from_git_branch
       origin_git_branch = "origin/#{@release.from_git_branch}"
