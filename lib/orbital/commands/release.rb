@@ -467,7 +467,7 @@ class Orbital::Commands::Release < Orbital::Command
 
   private
   def build_docker_image_dockerfile_docker(docker_image)
-    run "docker", "build", "-t", docker_image.image_ref, docker_image.source_path.to_s
+    run "docker", "build", "--platform", "linux/amd64", "-t", docker_image.image_ref, docker_image.source_path.to_s
     logger.fatal "image build failed" unless $?.success?
     logger.success "image built"
 
