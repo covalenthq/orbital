@@ -22,7 +22,7 @@ PATH
       base32-multi (~> 0.1.0)
       k8s-ruby (~> 0.10.5)
       kubesealr (~> 0.1.2)
-      kustomizer (~> 0.1.13)
+      kustomizer (~> 0.1.15)
       paint (~> 2.2.1)
       recursive-open-struct (~> 1.0, >= 1.0.1)
       thor (~> 1.1.0)
@@ -79,7 +79,7 @@ GEM
     kubesealr (0.1.2)
       k8s-ruby
       openssl-oaep
-    kustomizer (0.1.13)
+    kustomizer (0.1.15)
       accessory (~> 0.1.11)
       base32-multi
     method_source (1.0.0)

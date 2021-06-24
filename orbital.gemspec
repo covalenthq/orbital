@@ -36,7 +36,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'paint', '~> 2.2.1'
   spec.add_runtime_dependency 'recursive-open-struct', '~> 1.0', '>= 1.0.1'
   spec.add_runtime_dependency 'accessory', '~> 0.1.11'
-  spec.add_runtime_dependency 'kustomizer', '~> 0.1.13'
+  spec.add_runtime_dependency 'kustomizer', '~> 0.1.15'
   spec.add_runtime_dependency 'kubesealr', '~> 0.1.2'
   spec.add_runtime_dependency 'base32-multi', '~> 0.1.0'
   # spec.add_runtime_dependency 'rugged', '~> 1.1.0'
