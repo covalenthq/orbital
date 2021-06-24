@@ -32,7 +32,7 @@ class Orbital::KustomizePlugins::ImageRefsFromReleaseTransformer < Kustomize::Tr
     pr = self.session.orbital_context.project.proposed_release
     return @new_refs = {} unless pr
 
-    afs = pr.artifacts.values
+    afs = (pr.artifacts || {}).values
       .filter{ |af| af['type'] == 'DockerImage' && af.has_key?('image.digest') }
       .map{ |af| [af['image.name'], af['image.digest']] }
       .to_h

@@ -36,7 +36,7 @@ class Orbital::KustomizePlugins::ReleaseConfigMapGenerator < Kustomize::Generato
       'release.time' => rel.created_at.to_i
     }
 
-    af_props = rel.artifacts.flat_map do |artifact_name, details|
+    af_props = (rel.artifacts || {}).flat_map do |artifact_name, details|
       details.map{ |k, v| ["artifacts.#{artifact_name}.#{k}", v] }
     end.to_h
 
