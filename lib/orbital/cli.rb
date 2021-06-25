@@ -152,6 +152,8 @@ class Orbital::CLI::SecretsSubcommand < Orbital::CommandRouter
 
   method_option :name, aliases: '-n', type: :string, required: true,
                 desc: "Secret to describe."
+  method_option :unsealed, aliases: '-u', type: :boolean,
+                desc: "Attempt to temporarily unseal secrets for viewing."
   desc 'describe', 'Describe a managed secret'
   def describe(*)
     return invoke(:help, [:secrets, :describe]) if options[:help]

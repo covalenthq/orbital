@@ -148,11 +148,16 @@ class Orbital::Commands::Secrets::Describe < Orbital::SecretsCommand
 
   def execute(input: $stdin, output: $stdout)
     self.validate_environment!
+    self.ensure_sealer! if @options.unsealed
 
     sec = @context.project.secret_manager.secrets[@options.name]
 
     unless sec
       logger.fatal ["no secret '", @options.name, "' exists in the managed-secrets store"]
+    end
+
+    if @options.unsealed
+      sec.parts.values.each(&:unseal!)
     end
 
     puts("Secret " + Paint[sec.name, :bright])
