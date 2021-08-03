@@ -4,7 +4,7 @@ Orbital is a tool for the release management and deployment of applications and 
 
 Orbital was built to mimic the format and deploy process of Google Kubernetes Engine's proprietary [Application Delivery](https://cloud.google.com/kubernetes-engine/docs/concepts/add-on/application-delivery) infrastructure. Orbital-managed apps and components are "source compatible" with Application Delivery; repos created for use with Application Delivery's `appctl(1)` can easily be migrated to Orbital.
 
-Orbital was created because we at Covalent really like GKE's Application Delivery, but didn't like that it was proprietary, non-robust, and dog-slow. Orbital is none of those things.
+Orbital was created because we at Covalent really like GKE's Application Delivery, but didn't like that it was proprietary, non-robust, and dog-slow to run deploys with. Orbital is none of those things.
 
 For now, Orbital is still architected mostly for deployments to Google Kubernetes Engine specifically; but it is being actively rearchitected with a focus on use in an arbitrary Kubernetes cluster.
 
