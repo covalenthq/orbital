@@ -77,13 +77,25 @@ artifacts:
 
 The `.orbital/project.yaml` file configures things that `appctl(1)` doesn't know or care about: project-wide defaults, and artifact build-steps. For most applications, the above (with tweaks for your own build-step name and Docker tag) will work just fine.
 
-By convention, if creating a greenfield project with Orbital, the following `.appctlconfig` directory setup is suggested:
+#### Directory Configuration
+
+If creating a greenfield *application* project with Orbital — where the application will have many root-level directories in the repo — the following less-obtrusive `.appctlconfig` directory configuration is suggested, lining up with Orbital's choice of `.orbital`:
 
 ```yaml
 config_path: .appctl/config
 delivery_path: .appctl/delivery
 deploy_repo_path: .appctl/deployment
 ```
+
+Alternately, if creating a greenfield *infrastructure component* project with Orbital — where the component will effectively exist _only_ in the form of a bunch of Kustomize manifests — it is suggested to instead make the appctl directory visible:
+
+```yaml
+config_path: appctl/config
+delivery_path: appctl/delivery
+deploy_repo_path: appctl/deployment
+```
+
+...and, as well, to name Orbital's configuration directory `orbital` rather than `.orbital`. (No config needed; Orbital checks both locations.)
 
 ## Usage
 
