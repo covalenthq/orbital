@@ -26,13 +26,10 @@ brew cask install google-cloud-sdk
 gcloud init
 ```
 
-3. In the root of this repo, install the Rubygem dependencies:
+3. Either:
 
-```sh
-git clone git@github.com:covalenthq/k8s-infra.git
-cd k8s-infra/
-bundle install
-```
+* install the `orbital` gem (provides `orbital` command)
+* clone this repository (use `./exe/orbital`)
 
 ## K8s development cluster provisioning (Docker for Mac)
 
@@ -57,18 +54,38 @@ brew cask install docker-edge
 
 ## Usage
 
-Scripted tasks are specified in `Rakefile` format.
+Orbital is _somewhat_ self-documenting. You can get a list of subcommands by running `orbital help`.
 
-You can see the list of implemented top-level tasks by running:
+### Set up and Manage your Workstation
 
-```sh
-rake --tasks
-```
+`orbital setup` is an umbrella for setup tasks used to bootstrap and maintain configuration for both local workstations and k8s clusters.
 
-Tasks form a dependency-graph and are idempotent. Don't worry about the side-effects of a task; just identify the set of capabilities you want to set up on your host and in your cluster, run the relevant tasks, and everything should "just work."
+(N.B. This area of Orbital is currently under re-development, and should not currently be relied upon.)
 
-To set up the *minimum viable* set of infrastructure components required to deploy Covalent applications into a given k8s cluster, run:
+### Make Releases, Deploy Releases
 
-```sh
-rake cluster:base
-```
+1. `orbital release` will create a release from the current commit.
+
+2. `orbital deploy -t [release-tag] -e [deploy-environment]` will deploy a tagged release to a configured k8s target environment.
+
+These subcommands work the same as the equivalent subcommands of `appctl(1)`.
+
+`orbital release -d` will create a release, and—if successful—will automatically deploy said release to the default target-env (assumed to be `"staging"` unless overridden.)
+
+### Manage Sealed Secrets
+
+Orbital embeds a work-alike implementation of Bitnami's [`kubeseal(1)`](https://github.com/bitnami-labs/sealed-secrets) client for creating and managing sealed secrets. These secrets exist as files within an Orbital application's repo, under the `.orbital/managed-secrets` directory.
+
+Unlike `kubeseal(1)`, Orbital's secrets manager implements *local unsealing* of previously-sealed secrets, provided your k8s ServiceAccount has `GET` access to the cluster-sealer's signing-certificate secret. (Only k8s cluster administrators should be granted this privilege.) Of course, this refutes the whole "one-way encrypted" property Bitnami insists is true; but clearly, since this is possible, that was never the case.
+
+* Use `orbital secrets` to list the secrets under management.
+
+* Use `orbital secrets describe -n <secret-name>` to view a specific secret. If the secret is sealed, pass `-u` or `--unsealed` to attempt to unseal the secret in-memory for display.
+
+* Use `orbital secrets seal -n <secret-name>` to seal a secret. Add `-k <part-name>` to only seal a specific part of the secret.
+
+* Use `orbital secrets unseal -n <secret-name>` to attempt to unseal a secret. Add `-k <part-name>` to only attempt to unseal a specific part of the secret.
+
+* Use `orbital secrets set -n <secret-name> -k <part-name> -t <part-type> -v <value>` to add/update an unsealed part in a secret.
+
+* Use `orbital secrets set -n <secret-name> -k <part-name> -t <part-type> --seal` to add/update an sealed part in a secret. (The secret will be taken from stdin, or prompted for if the terminal is interactive.)
