@@ -22,7 +22,7 @@ gem install bundler
 2. Install the *Google Cloud SDK*, and follow the prompts to log in:
 
 ```sh
-brew cask install google-cloud-sdk
+brew install --cask google-cloud-sdk
 gcloud init
 ```
 
