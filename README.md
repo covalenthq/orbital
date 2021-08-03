@@ -1,6 +1,6 @@
 # Orbital
 
-This repo contains a set of scripted tasks to automate the initial infrastructure setup tasks for a Kubernetes cluster.
+Orbital is a tool for the release management and deployment of applications and infrastructure components in a Kubernetes cluster.
 
 ## Runtime environment setup (macOS)
 
