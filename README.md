@@ -54,6 +54,29 @@ brew cask install docker-edge
    context. (Or run `kubectl config set-context docker-desktop`; these are
    equivalent.)
 
+## App repo configuration
+
+For the most part, you can follow the instructions in GKE's [Application Delivery](https://cloud.google.com/kubernetes-engine/docs/concepts/add-on/application-delivery) tutorial for setting up a repo. Orbital reads and uses the `.appctlconfig` file placed at the root of the repo to discover the configured locations for other resources, exactly as `appctl(1)` does. Orbital also uses the same format for `delivery/envs/*.yaml` files.
+
+The only major difference is the addition of another required file `.orbital/project.yaml`, with contents similar to the following:
+
+```yaml
+---
+schema_version: 1
+
+default_environment: staging
+
+artifacts:
+  "django":
+    build_steps:
+      - type: docker_image
+        spec_type: Dockerfile
+        image_name: gcr.io/covalent-project/django
+        source_path: "."
+```
+
+The `.orbital/project.yaml` file configures things that `appctl(1)` doesn't know or care about: project-wide defaults, and artifact build-steps. For most applications, the above (with tweaks for your own build-step name and Docker tag) will work just fine.
+
 ## Usage
 
 Orbital is _somewhat_ self-documenting. You can get a list of subcommands by running `orbital help`.
