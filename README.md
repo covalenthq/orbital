@@ -8,7 +8,9 @@ Orbital was created because we at Covalent really like GKE's Application Deliver
 
 For now, Orbital is still architected mostly for deployments to Google Kubernetes Engine specifically; but it is being actively rearchitected with a focus on use in an arbitrary Kubernetes cluster.
 
-## Runtime environment setup (macOS)
+## Setup
+
+### Runtime environment setup (macOS)
 
 1. Install a recent Ruby, and add its bin dir to your `$PATH`. Also install
 the `bundler` gem.
@@ -31,7 +33,7 @@ gcloud init
 * install the `orbital` gem (provides `orbital` command)
 * clone this repository (use `./exe/orbital`)
 
-## K8s development cluster provisioning (Docker for Mac)
+### K8s development cluster provisioning (Docker for Mac)
 
 1. Install *Docker for Mac*, and `kubectl`:
 
