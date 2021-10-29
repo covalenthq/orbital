@@ -1,0 +1,71 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pathname'
+require 'rubygems'
+
+sdk_root = Pathname.new(__FILE__).realpath.parent.parent.expand_path
+
+gemfile_path = sdk_root / 'Gemfile'
+lockfile_path = sdk_root / 'Gemfile.lock'
+gemspec_path = sdk_root / 'orbital.gemspec'
+vendor_dir = sdk_root / 'vendor'
+lib_dir = sdk_root / 'lib'
+
+ENV['BUNDLE_GEMFILE'] ||= gemfile_path.to_s
+ENV['BUNDLE_PATH'] = vendor_dir.to_s
+ENV['BUNDLE_WITHOUT'] = 'development'
+ENV['BUNDLE_JOBS'] = '4'
+
+deps_mtime = [gemfile_path, lockfile_path, gemspec_path].map(&:mtime).max
+
+vendor_active_dir =
+  if vendor_dir.directory?
+    vendor_ruby_dirs = [
+      (vendor_dir / 'bundle' / 'ruby'),
+      (vendor_dir / 'ruby')
+    ]
+    if vendor_ruby_dir = vendor_ruby_dirs.find{ |f| f.directory? }
+      vendor_ruby_dir.children.sort.reverse.find{ |f| f.directory? }
+    end
+  end
+
+unless vendor_active_dir and deps_mtime <= vendor_active_dir.mtime
+  if vendor_dir.directory?
+    $stderr.write "\nUpdating Orbital SDK dependencies…"
+  else
+    $stderr.write "\nInstalling Orbital SDK dependencies…"
+  end
+
+  Dir.chdir(sdk_root.to_s) do
+    system(ENV, "bundle", "install", "--quiet")
+  end
+
+  Kernel.exit(1) unless $?.success?
+  $stderr.write " done.\n\n"
+end
+
+require 'bundler/setup'
+
+$:.unshift(lib_dir.to_s) unless $:.include?(lib_dir.to_s)
+
+require 'orbital/context'
+
+ctx = Orbital::Context.create(
+  wd: Dir.pwd,
+  sdk_root: sdk_root,
+  shell_env: ENV
+)
+
+Signal.trap('INT') do
+  warn("\n#{caller.join("\n")}: interrupted")
+  exit(1)
+end
+
+begin
+  require 'orbital/cli'
+  Orbital::CLI.start(ARGV + ['--contextuuid', ctx.uuid.to_s])
+rescue Orbital::CommandValidationError => err
+  ctx.logger.log_exception(err)
+  Kernel.exit(1)
+end
