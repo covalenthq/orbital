@@ -32,7 +32,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'tty-table', '~> 0.12.0'
   spec.add_runtime_dependency 'thor', '~> 1.1.0'
   spec.add_runtime_dependency 'activesupport', '~> 6.1.1'
-  spec.add_runtime_dependency 'k8s-ruby', '~> 0.10.5'
+  spec.add_runtime_dependency 'k8s-ruby2', '~> 0.10.6'
   spec.add_runtime_dependency 'paint', '~> 2.2.1'
   spec.add_runtime_dependency 'recursive-open-struct', '~> 1.0', '>= 1.0.1'
   spec.add_runtime_dependency 'accessory', '~> 0.1.11'
