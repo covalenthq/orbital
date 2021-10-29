@@ -1,18 +1,3 @@
-GIT
-  remote: https://github.com/tsutsu/k8s-ruby.git
-  revision: 3e3e3cd1c05dd893774c11adcc5fa112500f3fdf
-  branch: fork-master
-  specs:
-    k8s-ruby (0.10.5)
-      dry-struct (~> 1.4.0)
-      dry-types (~> 1.5.0)
-      excon (~> 0.78)
-      hashdiff (~> 1.0.1)
-      jsonpath (~> 1.1.0)
-      recursive-open-struct (~> 1.1.3)
-      yajl-ruby (~> 1.4.1)
-      yaml-safe_load_stream2 (~> 0.1)
-
 PATH
   remote: .
   specs:
@@ -20,8 +5,8 @@ PATH
       accessory (~> 0.1.11)
       activesupport (~> 6.1.1)
       base32-multi (~> 0.1.0)
-      k8s-ruby (~> 0.10.5)
-      kubesealr (~> 0.1.2)
+      k8s-ruby2 (~> 0.10.6)
+      kubesealr (~> 0.1.3)
       kustomizer (~> 0.1.15)
       paint (~> 2.2.1)
       recursive-open-struct (~> 1.0, >= 1.0.1)
@@ -76,8 +61,17 @@ GEM
     ice_nine (0.11.2)
     jsonpath (1.1.0)
       multi_json
-    kubesealr (0.1.2)
-      k8s-ruby
+    k8s-ruby2 (0.10.6)
+      dry-struct (~> 1.4.0)
+      dry-types (~> 1.5.0)
+      excon (~> 0.78)
+      hashdiff (~> 1.0.1)
+      jsonpath (~> 1.1.0)
+      recursive-open-struct (~> 1.1.3)
+      yajl-ruby (~> 1.4.1)
+      yaml-safe_load_stream2 (~> 0.1.1)
+    kubesealr (0.1.3)
+      k8s-ruby2 (~> 0.10.6)
       openssl-oaep
     kustomizer (0.1.15)
       accessory (~> 0.1.11)
@@ -142,17 +136,16 @@ GEM
     zeitwerk (2.5.1)
 
 PLATFORMS
-  ruby
+  arm64-darwin-20
 
 DEPENDENCIES
-  k8s-ruby!
   orbital!
   pry (~> 0.14.0)
   rake (~> 13.0)
   rspec (~> 3.10.0)
 
 RUBY VERSION
-   ruby 2.6.3p62
+   ruby 3.0.2p107
 
 BUNDLED WITH
    2.2.30
