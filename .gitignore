@@ -16,3 +16,5 @@
 *.sublime-workspace
 
 Gemfile.lock
+
+*.gem
