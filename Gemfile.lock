@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    orbital (1.0.6)
+    orbital (1.0.7)
       accessory (~> 0.1.11)
       activesupport (~> 6.1.1)
       base32-multi (~> 0.1.0)
