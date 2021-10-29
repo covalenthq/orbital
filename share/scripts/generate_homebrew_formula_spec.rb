@@ -54,7 +54,7 @@ class Orbital < Formula
   license "MIT"
   revision 1
 
-  uses_from_macos "ruby", since: :catalina
+  depends_on "ruby"
 
 #{spec_dep_parts.join}
   def install
