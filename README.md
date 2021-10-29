@@ -12,26 +12,18 @@ For now, Orbital is still architected mostly for deployments to Google Kubernete
 
 ### Runtime environment setup (macOS)
 
-1. Install a recent Ruby, and add its bin dir to your `$PATH`. Also install
-the `bundler` gem.
-
-```sh
-brew install ruby
-echo 'export PATH=/usr/local/opt/ruby/bin:$PATH' >> ~/.bash_profile
-gem install bundler
-```
-
-2. Install the *Google Cloud SDK*, and follow the prompts to log in:
+Install the *Google Cloud SDK*, and follow the prompts to log in:
 
 ```sh
 brew install --cask google-cloud-sdk
 gcloud init
 ```
 
-3. Either:
+Install orbital from its Homebrew tap:
 
-* install the `orbital` gem (provides `orbital` command)
-* clone this repository (use `./exe/orbital`)
+```sh
+brew install covalenthq/covalent/orbital
+```
 
 ### K8s development cluster provisioning (Docker for Mac)
 
@@ -54,9 +46,11 @@ brew cask install docker-edge
    context. (Or run `kubectl config set-context docker-desktop`; these are
    equivalent.)
 
-## App repo configuration
+## Usage
 
-For the most part, you can follow the instructions in GKE's [Application Delivery](https://cloud.google.com/kubernetes-engine/docs/concepts/add-on/application-delivery) tutorial for setting up a repo. Orbital reads and uses the `.appctlconfig` file placed at the root of the repo to discover the configured locations for other resources, exactly as `appctl(1)` does. Orbital bakes down Kustomize manifests found in `$CONFIG_DIR/*/Kustomization.yaml` just as `appctl(1)` does; and also relies on the same format for `$DELIVERY_DIR/envs/*.yaml` files.
+### Setting up a new Orbital project
+
+For the most part, you can follow the instructions in GKE's [Application Delivery](https://cloud.google.com/kubernetes-engine/docs/concepts/add-on/application-delivery) tutorial for setting up a repo to use Orbital. Orbital reads and uses the `.appctlconfig` file placed at the root of the repo to discover the configured locations for other resources, exactly as `appctl(1)` does. Orbital bakes down Kustomize manifests found in `$CONFIG_DIR/*/Kustomization.yaml` just as `appctl(1)` does; and also relies on the same format for `$DELIVERY_DIR/envs/*.yaml` files.
 
 The only major difference is the addition of another required file `.orbital/project.yaml`, with contents similar to the following:
 
@@ -79,7 +73,7 @@ The `.orbital/project.yaml` file configures things that `appctl(1)` doesn't know
 
 #### Directory Configuration
 
-If creating a greenfield *application* project with Orbital — where the application will have many root-level directories in the repo — the following less-obtrusive `.appctlconfig` directory configuration is suggested, lining up with Orbital's choice of `.orbital`:
+If creating a greenfield *application* project with Orbital — where the application will have many root-level directories in the repo — the following less-obtrusive `.appctlconfig` directory configuration is suggested, lining up with Orbital's choice of `.orbital`:
 
 ```yaml
 config_path: .appctl/config
@@ -87,7 +81,7 @@ delivery_path: .appctl/delivery
 deploy_repo_path: .appctl/deployment
 ```
 
-Alternately, if creating a greenfield *infrastructure component* project with Orbital — where the component will effectively exist _only_ in the form of a bunch of Kustomize manifests — it is suggested to instead make the appctl directory visible:
+Alternately, if creating a greenfield *infrastructure component* project with Orbital — where the component will effectively exist _only_ in the form of a bunch of Kustomize manifests — it is suggested to instead make the appctl directory visible:
 
 ```yaml
 config_path: appctl/config
