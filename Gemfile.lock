@@ -9,6 +9,7 @@ PATH
       kubesealr (~> 0.1.3)
       kustomizer (~> 0.1.17)
       paint (~> 2.2.1)
+      pry (~> 0.14.0)
       recursive-open-struct (~> 1.0, >= 1.0.1)
       thor (~> 1.1.0)
       tty-command (~> 0.10.0)
@@ -140,7 +141,6 @@ PLATFORMS
 
 DEPENDENCIES
   orbital!
-  pry (~> 0.14.0)
   rake (~> 13.0)
   rspec (~> 3.10.0)
 

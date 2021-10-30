@@ -42,9 +42,9 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'kustomizer', '~> 0.1.17'
   spec.add_runtime_dependency 'kubesealr', '~> 0.1.3'
   spec.add_runtime_dependency 'base32-multi', '~> 0.1.0'
+  spec.add_runtime_dependency 'pry', '~> 0.14.0'
   # spec.add_runtime_dependency 'rugged', '~> 1.1.0'
 
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.10.0'
-  spec.add_development_dependency 'pry', '~> 0.14.0'
 end
