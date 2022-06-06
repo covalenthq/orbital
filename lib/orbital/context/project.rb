@@ -97,7 +97,8 @@ class Orbital::Context::Project
   end
 
   VALID_BUILD_STEP_BUILDER_KEYS = Set[
-    :docker_image
+    :docker_image,
+    :static_analysis
   ]
 
   def artifact_blueprints

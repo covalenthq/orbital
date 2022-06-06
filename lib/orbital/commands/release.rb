@@ -155,9 +155,16 @@ class Orbital::Commands::Release < Orbital::Command
           logger.step ["build ", Paint[artifact_name, :blue], " (phase ", Paint[(i + 1).to_s, :bold], "): ", build_step[:name]]
 
           step_details = case build_step[:builder]
+          in :static_analysis
+            analysis_spec_type = build_step.dig(:params, :spec_type) || 'generic'
+            analysis_opts = build_step.dig(:params)
+            logger.success "collect build-step configuration"
+
+            run_static_analysis(analysis_spec_type, analysis_opts)
+
           in :docker_image
             image_name = build_step.dig(:params, :image_name)
-            logger.fatal "image_name is required in docker_image builds" unless image_name
+            logger.fatal "image_name is required in docker_image steps" unless image_name
 
             source_path = build_step.dig(:params, :source_path) || @context.project.root
             docker_spec_type = build_step.dig(:params, :spec_type) || 'Dockerfile'
@@ -353,6 +360,43 @@ class Orbital::Commands::Release < Orbital::Command
     )
 
     @release.published = true
+  end
+
+  private
+  def run_static_analysis(engine, opts)
+    logger.info [
+      "using static analysis backend ",
+      Paint[engine.to_s, :bright]
+    ]
+
+    case engine
+    in 'generic'
+      run_static_analysis_generic(**opts)
+    else
+      logger.fatal "unsupported backend!"
+    end
+
+    {
+      "type" => "StaticAnalysisResult",
+      "buildEngine" => engine,
+      "configuration" => opts,
+      "success" => true
+    }
+  end
+
+  private
+  def run_static_analysis_generic(command: nil, **kwargs)
+    unless command
+      logger.fatal [
+        "build-step key ",
+        Paint[command, :bright],
+        " is required for generic static_anaylsis backend"
+      ]
+    end
+
+    run(*(command.split(' ')))
+    logger.fatal "static analysis failed" unless $?.success?
+    logger.success "static analysis step passed"
   end
 
   DEFAULT_IMAGEBUILDER_BACKENDS = {
