@@ -36,6 +36,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'thor', '~> 1.2.1'
   spec.add_runtime_dependency 'activesupport', '~> 7.0.2'
   spec.add_runtime_dependency 'k8s-ruby2', '~> 2.0.13'
+  spec.add_runtime_dependency 'dry-logic', '1.2.0'
   spec.add_runtime_dependency 'paint', '~> 2.2.1'
   spec.add_runtime_dependency 'recursive-open-struct', '~> 1.0', '>= 1.0.1'
   spec.add_runtime_dependency 'accessory', '~> 0.1.11'
