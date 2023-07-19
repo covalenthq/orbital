@@ -121,6 +121,11 @@ class Orbital::Context::DeployEnvironment
 
       cert_req = k8s_client.transport.request_options.merge(cert_req_opts)
       cert_resp = k8s_client.transport.excon.request(cert_req)
+
+      if cert_resp.status != 200
+        raise KeyError, "cluster certificate missing or cluster sealer not installed"
+      end
+
       cert_pem_str = cert_resp.body
 
       cluster_certificate = OpenSSL::X509::Certificate.new(cert_pem_str)
