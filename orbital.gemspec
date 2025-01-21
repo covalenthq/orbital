@@ -27,6 +27,8 @@ Gem::Specification.new do |spec|
   spec.executables   = ['orbital']
   spec.require_paths = ['lib']
 
+  spec.add_runtime_dependency 'fileutils', '~> 1.7.3'
+  spec.add_runtime_dependency 'base64', '~> 0.2.0'
   spec.add_runtime_dependency 'tty-command', '~> 0.10.0'
   spec.add_runtime_dependency 'tty-link', '~> 0.1.1'
   spec.add_runtime_dependency 'tty-which', '~> 0.5.0'
